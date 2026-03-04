@@ -1,0 +1,112 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "slosizer"
+version = "0.1.0"
+description = "Capacity planning for reserved LLM throughput: latency, headroom, and synthetic workload simulation."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.13"
+authors = [
+  {name = "Gaurav Sood", email = "contact@gsood.com"}
+]
+keywords = ["llm", "capacity-planning", "slo", "vertex-ai", "azure-openai", "throughput", "latency"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "numpy",
+  "pandas",
+  "matplotlib",
+]
+
+[project.urls]
+Homepage = "https://github.com/gojiplus/slosizer"
+Documentation = "https://gojiplus.github.io/slosizer"
+Repository = "https://github.com/gojiplus/slosizer"
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "ruff",
+  "deptry",
+  "vulture",
+  "pydoclint",
+  "pyright",
+]
+docs = [
+  "sphinx",
+  "furo",
+  "myst-parser",
+  "sphinx-autodoc-typehints",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/slosizer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+  "UP",
+  "SIM",
+  "D",
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false
+
+[tool.deptry]
+known_first_party = ["slosizer"]
+extend_exclude = ["examples/output", "docs/assets"]
+ignore_notebooks = true
+
+[tool.vulture]
+paths = ["src", "tests", "examples"]
+exclude = ["examples/output/", "docs/assets/"]
+min_confidence = 80
+sort_by_size = true
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+reportAttributeAccessIssue = false
+reportArgumentType = false
+reportOperatorIssue = false
+reportReturnType = false
+reportCallIssue = false
+reportGeneralTypeIssues = false
+
