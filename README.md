@@ -2,7 +2,7 @@
 
 [![PyPI Version](https://img.shields.io/pypi/v/slosizer.svg)](https://pypi.python.org/pypi/slosizer)
 [![Documentation Status](https://github.com/gojiplus/slosizer/actions/workflows/docs.yml/badge.svg)](https://gojiplus.github.io/slosizer/)
-[![Downloads](https://static.pepy.tech/badge/lost-years)](https://pepy.tech/project/lost-years)
+[![Downloads](https://static.pepy.tech/badge/slosizer)](https://pepy.tech/project/slosizer)
 
 
 `slosizer` is a small Python package for sizing reserved LLM capacity against either a **throughput objective** or a **latency SLO**.
