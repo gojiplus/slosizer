@@ -1,6 +1,7 @@
 # slosizer
 
 [![PyPI Version](https://img.shields.io/pypi/v/slosizer.svg)](https://pypi.python.org/pypi/slosizer)
+[![CI](https://github.com/gojiplus/slosizer/actions/workflows/ci.yml/badge.svg)](https://github.com/gojiplus/slosizer/actions?query=workflow%3Aci)
 [![Documentation Status](https://github.com/gojiplus/slosizer/actions/workflows/docs.yml/badge.svg)](https://gojiplus.github.io/slosizer/)
 [![Downloads](https://static.pepy.tech/badge/slosizer)](https://pepy.tech/project/slosizer)
 
