@@ -1,4 +1,4 @@
-# slosizer: SLO-aware capacity planning for reserved LLM deployments
+# slosizer: Right-size reserved LLM capacity Based on SLO
 
 [![PyPI Version](https://img.shields.io/pypi/v/slosizer.svg)](https://pypi.python.org/pypi/slosizer)
 [![CI](https://github.com/gojiplus/slosizer/actions/workflows/ci.yml/badge.svg)](https://github.com/gojiplus/slosizer/actions?query=workflow%3Aci)
