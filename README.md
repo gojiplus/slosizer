@@ -22,8 +22,8 @@ Reserved-capacity systems like GSU/PTU are fundamentally **throughput constructs
 
 `slosizer` gives you one place to:
 
-1. **ingest** raw request logs into a canonical `RequestTrace`,
-2. turn requests into provider-specific **adjusted work**,
+1. **load** request logs into the format the planner expects,
+2. convert requests into provider-specific capacity units (GSU/PTU),
 3. plan capacity for either:
    - **throughput**: control overload probability or required-unit percentile,
    - **latency**: satisfy p95/p99 queue-aware latency targets,
@@ -33,22 +33,62 @@ Reserved-capacity systems like GSU/PTU are fundamentally **throughput constructs
    - expected overflow,
    - optimization benefit.
 
-## What does "ingest" mean here?
+## How latency works
 
-It just means **map your raw logs into the clean columns the planner expects**.
+Total latency = **model latency** + **queue delay**.
 
-If your real data has columns like `timestamp`, `prompt_tokens`, `completion_tokens`, `reasoning_tokens`, and `cache_hit_tokens`, the package standardizes that into a canonical `RequestTrace` with:
+Model latency is how long the LLM takes to process your request with no contention—estimated from token counts and provider throughput rates. Queue delay is waiting time caused by bursty arrivals: when requests arrive faster than capacity can serve them, a backlog forms.
 
-- `arrival_s`
-- `class_name`
-- `input_tokens`
-- `cached_input_tokens`
-- `output_tokens`
-- `thinking_tokens`
-- `max_output_tokens`
-- `observed_latency_s`
+The package simulates an FCFS queue against your request trace to estimate tail latencies (p95/p99). More reserved capacity = shorter queues = lower tail latency. The goal is finding the minimum capacity that keeps queue delay acceptable.
 
-That is all. No incense. No chanting.
+## Two ways to start
+
+### Option 1: No data yet
+
+Use the synthetic generator to explore capacity planning before you have real logs:
+
+```python
+import slosizer as slz
+
+trace = slz.make_synthetic_trace(seed=42)
+profile = slz.vertex_profile("gemini-2.0-flash-001")
+
+result = slz.plan_capacity(
+    trace,
+    profile,
+    slz.LatencyTarget(slz.LatencySLO(threshold_s=1.5, percentile=0.99, metric="e2e"))
+)
+```
+
+### Option 2: You have request logs
+
+You need a CSV (or DataFrame) with at minimum these 3 columns:
+
+| Column | What it means |
+|--------|---------------|
+| `timestamp` | When the request arrived (datetime or seconds) |
+| `input_tokens` | Tokens in the prompt |
+| `output_tokens` | Tokens in the response |
+
+That's it. The package normalizes timestamps and fills defaults for everything else.
+
+```python
+import pandas as pd
+import slosizer as slz
+
+df = pd.read_csv("requests.csv")
+
+trace = slz.from_dataframe(
+    df,
+    schema=slz.RequestSchema(
+        time_col="timestamp",
+        input_tokens_col="input_tokens",
+        output_tokens_col="output_tokens",
+    ),
+    provider="vertex",
+    model="gemini-2.0-flash-001",
+)
+```
 
 ## Quickstart
 
@@ -164,25 +204,21 @@ profile = slz.azure_profile(
 )
 ```
 
-## What data do you need?
+## Optional fields for better planning
 
-You can start with only these three fields:
+The 3-column minimum works, but you get more accurate capacity estimates with:
 
-- `timestamp`
-- `input_tokens`
-- `output_tokens`
+| Column | Why it helps |
+|--------|--------------|
+| `cached_input_tokens` | Cached tokens cost less capacity |
+| `thinking_tokens` | Reasoning models use extra tokens |
+| `max_output_tokens` | Helps estimate worst-case latency |
+| `class_name` | Separate capacity needs by request type |
+| `latency_s` | Calibrate model latency estimates |
 
-You get better plans when you also provide:
+See [`docs/data-requirements.md`](docs/data-requirements.md) for full details.
 
-- `cached_input_tokens`
-- `thinking_tokens`
-- `max_output_tokens`
-- `class_name`
-- `latency_s`
-
-See the concrete schema guide in [`docs/data-requirements.md`](docs/data-requirements.md).
-
-There are also example input files in:
+Example input files:
 
 - [`examples/input/synthetic_request_trace_baseline.csv`](examples/input/synthetic_request_trace_baseline.csv)
 - [`examples/input/synthetic_request_trace_optimized.csv`](examples/input/synthetic_request_trace_optimized.csv)
