@@ -19,7 +19,7 @@ from slosizer import (
 from slosizer.providers.vertex import available_vertex_profiles, vertex_profile
 from slosizer.simulation import bucket_required_units, simulate_capacity
 
-EXAMPLE_CSV = Path(__file__).parent.parent.parent / "examples" / "input" / "synthetic_request_trace_baseline.csv"
+EXAMPLE_CSV = Path(__file__).parent / "examples" / "input" / "synthetic_request_trace_baseline.csv"
 
 
 def load_example_data() -> pd.DataFrame:
@@ -38,7 +38,11 @@ def infer_schema(df: pd.DataFrame) -> RequestSchema:
     output_tokens_col = "output_tokens"
     thinking_tokens_col = "thinking_tokens" if "thinking_tokens" in cols else None
     max_output_tokens_col = "max_output_tokens" if "max_output_tokens" in cols else None
-    latency_col = "observed_latency_s" if "observed_latency_s" in cols else None
+    latency_col = (
+        "observed_latency_s"
+        if "observed_latency_s" in cols and df["observed_latency_s"].notna().any()
+        else None
+    )
 
     return RequestSchema(
         time_col=time_col,
@@ -105,24 +109,27 @@ def main() -> None:
                 value=1.5,
                 step=0.1,
             )
-            percentile = st.selectbox(
+            percentile = st.number_input(
                 "Percentile",
-                [0.95, 0.99],
-                index=1,
-                format_func=lambda x: f"p{int(x * 100)}",
-            )
+                min_value=0.0,
+                max_value=100.0,
+                value=99.0,
+                step=1.0,
+            ) / 100.0
             metric = st.selectbox(
                 "Metric",
                 ["e2e", "queue_delay"],
                 format_func=lambda x: "End-to-end" if x == "e2e" else "Queue delay only",
             )
         else:
-            throughput_percentile = st.selectbox(
+            throughput_percentile = st.number_input(
                 "Percentile",
-                [0.95, 0.99],
-                index=1,
-                format_func=lambda x: f"p{int(x * 100)}",
-            )
+                min_value=0.0,
+                max_value=100.0,
+                value=99.0,
+                step=1.0,
+                key="throughput_percentile",
+            ) / 100.0
             max_overload = st.slider(
                 "Max overload probability",
                 min_value=0.001,
@@ -179,14 +186,14 @@ def main() -> None:
                 st.subheader("Planning Metrics")
                 metrics_df = pd.DataFrame([result.metrics]).T
                 metrics_df.columns = ["Value"]
-                st.dataframe(metrics_df, use_container_width=True)
+                st.dataframe(metrics_df.round(4), use_container_width=True)
 
                 if result.latency_summary is not None:
                     st.subheader("Latency Summary")
-                    st.dataframe(result.latency_summary, use_container_width=True)
+                    st.dataframe(result.latency_summary.round(4), use_container_width=True)
 
                 st.subheader("Slack Summary")
-                st.dataframe(result.slack_summary, use_container_width=True)
+                st.dataframe(result.slack_summary.round(4), use_container_width=True)
 
             with tab2:
                 st.subheader("Latency vs Provisioned Units")
@@ -200,11 +207,13 @@ def main() -> None:
                 for unit in units_range:
                     simulation = simulate_capacity(trace, profile, units=unit, options=options)
                     summary = simulation.latency_summary.iloc[0]
-                    rows.append({
-                        "units": unit,
-                        "p95_latency_s": float(summary["p95_latency_s"]),
-                        "p99_latency_s": float(summary["p99_latency_s"]),
-                    })
+                    rows.append(
+                        {
+                            "units": unit,
+                            "p95_latency_s": float(summary["p95_latency_s"]),
+                            "p99_latency_s": float(summary["p99_latency_s"]),
+                        }
+                    )
 
                 plot_df = pd.DataFrame(rows)
                 ax.plot(plot_df["units"], plot_df["p95_latency_s"], marker="o", label="p95 latency")
@@ -213,7 +222,12 @@ def main() -> None:
                 if target_type == "Latency SLO":
                     ax.axhline(threshold_s, linestyle="--", color="red", label="target threshold")
 
-                ax.axvline(result.recommended_units, linestyle=":", color="green", label=f"recommended ({result.recommended_units})")
+                ax.axvline(
+                    result.recommended_units,
+                    linestyle=":",
+                    color="green",
+                    label=f"recommended ({result.recommended_units})",
+                )
                 ax.set_xlabel(f"Provisioned {profile.unit_name}s")
                 ax.set_ylabel("Latency (seconds)")
                 ax.set_title("Latency vs Provisioned Capacity")
@@ -238,9 +252,16 @@ def main() -> None:
 
                 for window_s in windows_s:
                     subset = required[required["window_s"] == float(window_s)]
-                    ax.hist(subset["required_units"], bins=30, alpha=0.6, label=f"{window_s:g}s window")
+                    ax.hist(
+                        subset["required_units"], bins=30, alpha=0.6, label=f"{window_s:g}s window"
+                    )
 
-                ax.axvline(result.recommended_units, linestyle="--", color="red", label=f"recommended ({result.recommended_units})")
+                ax.axvline(
+                    result.recommended_units,
+                    linestyle="--",
+                    color="red",
+                    label=f"recommended ({result.recommended_units})",
+                )
                 ax.set_xlabel(f"Required {profile.unit_name}s")
                 ax.set_ylabel("Bucket count")
                 ax.set_title("Distribution of Required Reserved Capacity")
