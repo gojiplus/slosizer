@@ -1,11 +1,17 @@
 """Internal utility functions for capacity calculations."""
 
+from __future__ import annotations
+
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from slosizer.schema import CapacityProfile
+
+if TYPE_CHECKING:
+    from slosizer.schema import OutputTokenSource
 
 
 def round_up_to_increment(units: float, minimum: int, increment: int) -> int:
@@ -23,17 +29,17 @@ def round_up_to_increment(units: float, minimum: int, increment: int) -> int:
     return int(math.ceil(base / increment) * increment)
 
 
-def selected_output_tokens(frame: pd.DataFrame, source: str) -> np.ndarray:
+def selected_output_tokens(frame: pd.DataFrame, source: str | OutputTokenSource) -> np.ndarray:
     """Select output token values based on source preference.
 
     Args:
         frame: DataFrame with output_tokens and max_output_tokens columns.
-        source: Either "observed" or "max_output_tokens".
+        source: OutputTokenSource.OBSERVED or OutputTokenSource.MAX_OUTPUT_TOKENS.
 
     Returns:
         Array of output token counts.
     """
-    if source == "max_output_tokens":
+    if str(source) == "max_output_tokens":
         return frame["max_output_tokens"].to_numpy(dtype=float)
     return frame["output_tokens"].to_numpy(dtype=float)
 
@@ -42,7 +48,7 @@ def adjusted_work(
     frame: pd.DataFrame,
     profile: CapacityProfile,
     *,
-    output_token_source: str = "observed",
+    output_token_source: str | OutputTokenSource = "observed",
 ) -> np.ndarray:
     """Compute weighted token work for each request.
 
@@ -52,7 +58,7 @@ def adjusted_work(
     Args:
         frame: DataFrame with token count columns.
         profile: Capacity profile with token weights.
-        output_token_source: Source for output tokens ("observed" or "max_output_tokens").
+        output_token_source: OutputTokenSource.OBSERVED or OutputTokenSource.MAX_OUTPUT_TOKENS.
 
     Returns:
         Array of adjusted work values per request.

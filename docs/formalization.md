@@ -70,6 +70,27 @@ Queue delay for request `j` is approximated by:
 
 This is not a perfect service simulator; it is a deliberately pragmatic tail-latency approximation.
 
+### Queue model assumptions
+
+The queue model makes several simplifying assumptions:
+
+1. **Single-server FCFS**: All capacity is treated as a single aggregate server processing requests first-come-first-served. Real deployments may have multiple replicas with their own queues.
+
+2. **Fluid approximation**: Work is treated as continuous rather than discrete tokens. This smooths over per-token generation time variation.
+
+3. **No preemption**: Once a request starts, it runs to completion. The model doesn't account for request cancellation or timeouts.
+
+4. **Deterministic service rate**: The service rate is fixed at `units * throughput_per_unit`. Real systems have variable throughput based on prompt complexity, cache hits, and hardware utilization.
+
+5. **Instantaneous queue joining**: Requests join the queue at their arrival time with no network latency.
+
+These assumptions mean the model tends to underestimate tail latencies when:
+- Workload is highly variable (bursty arrivals with long gaps)
+- Requests have significantly different sizes
+- The system operates near saturation
+
+For safety margins, use `headroom_factor` to add buffer capacity.
+
 ## Why percentile choice matters
 
 Optimizing for p95 usually buys fewer reserved units and therefore lower average slack.  

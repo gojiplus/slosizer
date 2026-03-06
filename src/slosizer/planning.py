@@ -35,6 +35,7 @@ def _flatten_slack_summary(slack_summary: pd.DataFrame) -> dict[str, float]:
         suffix = (
             str(int(float(row.window_s))) if float(row.window_s).is_integer() else str(row.window_s)
         )
+        metrics[f"avg_spare_units_{suffix}s"] = float(row.avg_spare_units)
         metrics[f"avg_spare_fraction_{suffix}s"] = float(row.avg_spare_fraction)
         metrics[f"overload_probability_{suffix}s"] = float(row.overload_probability)
         metrics[f"p99_required_units_{suffix}s"] = float(row.p99_required_units)
@@ -98,7 +99,13 @@ def _plan_throughput(
             break
 
     if recommended is None:
-        raise RuntimeError("No feasible throughput plan found within the configured search range.")
+        raise RuntimeError(
+            f"No feasible throughput plan found. "
+            f"Target: {target.label()}, "
+            f"search range: {profile.min_units}-{options.max_units_to_search} {profile.unit_name}. "
+            f"Try increasing max_units_to_search or relaxing the target "
+            f"(higher percentile or max_overload_probability)."
+        )
 
     metrics: dict[str, float | str] = {
         "planning_percentile": float(target.percentile)
@@ -134,7 +141,7 @@ def _plan_latency(
     options: PlanOptions,
 ) -> PlanResult:
     """Plan capacity for a latency target."""
-    metric_col = "total_latency_s" if target.slo.metric == "e2e" else "queue_delay_s"
+    metric_col = "total_latency_s" if str(target.slo.metric) == "e2e" else "queue_delay_s"
     recommended_base = None
 
     for units in _candidate_units(
@@ -149,7 +156,13 @@ def _plan_latency(
             break
 
     if recommended_base is None:
-        raise RuntimeError("No feasible latency plan found within the configured search range.")
+        raise RuntimeError(
+            f"No feasible latency plan found. "
+            f"Target: p{int(target.slo.percentile * 100)} {target.slo.metric.value} <= {target.slo.threshold_s}s, "
+            f"search range: {profile.min_units}-{options.max_units_to_search} {profile.unit_name}. "
+            f"Try increasing max_units_to_search, raising threshold_s, "
+            f"or lowering percentile."
+        )
 
     recommended = round_up_to_increment(
         recommended_base * (1.0 + options.headroom_factor),

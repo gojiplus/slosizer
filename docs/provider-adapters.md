@@ -90,47 +90,10 @@ profile = slz.azure_profile(
 )
 ```
 
-## Anthropic Claude
+## Anthropic Claude (Planned)
 
-Anthropic doesn't offer a provisioned throughput model like Vertex GSU or Azure PTU. Instead, Claude uses tier-based rate limits.
+> **Status: Not Yet Implemented**
+>
+> Anthropic doesn't offer a provisioned throughput model like Vertex GSU or Azure PTU. Claude uses tier-based rate limits which don't map cleanly to slosizer's capacity unit model. A future version may add support for modeling Claude rate limits, but there is currently no built-in `anthropic_profile()` function.
 
 Reference: [Anthropic Rate Limits](https://docs.anthropic.com/en/api/rate-limits)
-
-### Rate Limit Tiers
-
-| Tier | Requests/min | Input tokens/min | Output tokens/min |
-|------|-------------|------------------|-------------------|
-| 1 | 50 | 40,000 | 8,000 |
-| 2 | 1,000 | 80,000 | 16,000 |
-| 3 | 2,000 | 160,000 | 32,000 |
-| 4 | 4,000 | 400,000 | 80,000 |
-
-### Prompt Caching
-
-Claude supports [prompt caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) which reduces costs for repeated context:
-
-- Cache write: 25% more expensive than base input
-- Cache read: 90% cheaper than base input
-- TTL: 5 minutes (extended on cache hit)
-
-### Usage with slosizer
-
-While slosizer is designed for provisioned throughput models, you can model Claude rate limits as a CapacityProfile:
-
-```python
-import slosizer as slz
-
-# Model tier 3 as a single "unit"
-profile = slz.CapacityProfile(
-    provider="anthropic",
-    model="claude-sonnet-4",
-    unit_name="capacity_unit",
-    throughput_per_unit=160_000 / 60,  # tokens per second
-    input_weight=1.0,
-    cached_input_weight=0.1,  # prompt caching discount
-    output_weight=5.0,  # output tokens count more against limits
-    thinking_weight=5.0,
-)
-```
-
-This is a rough approximation; Claude's rate limits are more nuanced than this model captures.

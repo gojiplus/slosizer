@@ -18,8 +18,10 @@ from slosizer.providers.vertex import available_vertex_profiles, vertex_profile
 from slosizer.schema import (
     BaselineLatencyModel,
     CapacityProfile,
+    LatencyMetric,
     LatencySLO,
     LatencyTarget,
+    OutputTokenSource,
     PlanOptions,
     PlanResult,
     RequestSchema,
@@ -33,8 +35,10 @@ from slosizer.synthetic import make_synthetic_trace, optimize_trace
 __all__ = [
     "BaselineLatencyModel",
     "CapacityProfile",
+    "LatencyMetric",
     "LatencySLO",
     "LatencyTarget",
+    "OutputTokenSource",
     "PlanOptions",
     "PlanResult",
     "RequestSchema",

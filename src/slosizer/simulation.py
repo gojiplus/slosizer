@@ -4,6 +4,7 @@ This module simulates request processing with finite capacity to estimate
 latency distributions and capacity utilization.
 """
 
+import warnings
 from collections.abc import Iterable
 
 import numpy as np
@@ -38,6 +39,13 @@ def fit_baseline_latency_model(trace: RequestTrace) -> BaselineLatencyModel:
     n_valid = int(valid_mask.sum())
 
     if n_valid < 20:
+        warnings.warn(
+            f"Insufficient latency data ({n_valid} samples, need 20+). "
+            "Using default latency model. "
+            "Provide observed_latency_s values for more accurate estimates.",
+            UserWarning,
+            stacklevel=2,
+        )
         return BaselineLatencyModel()
 
     valid_frame = frame.loc[valid_mask]

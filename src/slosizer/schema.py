@@ -6,12 +6,37 @@ request traces, capacity profiles, SLO targets, and planning results.
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
 Percentile = float
+
+
+class OutputTokenSource(StrEnum):
+    """Source for output token counts in capacity planning.
+
+    Attributes:
+        OBSERVED: Use actual observed output token counts from trace data.
+        MAX_OUTPUT_TOKENS: Use max_output_tokens limit for worst-case planning.
+    """
+
+    OBSERVED = "observed"
+    MAX_OUTPUT_TOKENS = "max_output_tokens"
+
+
+class LatencyMetric(StrEnum):
+    """Latency metric for SLO evaluation.
+
+    Attributes:
+        E2E: End-to-end latency including baseline model latency and queue delay.
+        QUEUE_DELAY: Queue delay only, excluding baseline model latency.
+    """
+
+    E2E = "e2e"
+    QUEUE_DELAY = "queue_delay"
 
 
 @dataclass(frozen=True)
@@ -105,6 +130,26 @@ class CapacityProfile:
     source: str = ""
     notes: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        if self.throughput_per_unit is not None and self.throughput_per_unit <= 0:
+            raise ValueError(
+                f"throughput_per_unit must be positive, got {self.throughput_per_unit}"
+            )
+        if self.purchase_increment < 1:
+            raise ValueError(f"purchase_increment must be >= 1, got {self.purchase_increment}")
+        if self.min_units < 1:
+            raise ValueError(f"min_units must be >= 1, got {self.min_units}")
+        if self.input_weight < 0:
+            raise ValueError(f"input_weight must be non-negative, got {self.input_weight}")
+        if self.cached_input_weight < 0:
+            raise ValueError(
+                f"cached_input_weight must be non-negative, got {self.cached_input_weight}"
+            )
+        if self.output_weight < 0:
+            raise ValueError(f"output_weight must be non-negative, got {self.output_weight}")
+        if self.thinking_weight < 0:
+            raise ValueError(f"thinking_weight must be non-negative, got {self.thinking_weight}")
+
 
 @dataclass(frozen=True)
 class LatencySLO:
@@ -113,12 +158,21 @@ class LatencySLO:
     Attributes:
         threshold_s: Maximum acceptable latency in seconds.
         percentile: Target percentile (e.g., 0.99 for p99).
-        metric: Latency metric to measure ("e2e" or "queue_delay").
+        metric: Latency metric to measure (E2E or QUEUE_DELAY).
+
+    Raises:
+        ValueError: If threshold_s <= 0 or percentile not in (0, 1).
     """
 
     threshold_s: float
     percentile: Percentile = 0.99
-    metric: Literal["e2e", "queue_delay"] = "e2e"
+    metric: LatencyMetric = LatencyMetric.E2E
+
+    def __post_init__(self) -> None:
+        if self.threshold_s <= 0:
+            raise ValueError(f"threshold_s must be positive, got {self.threshold_s}")
+        if not (0 < self.percentile < 1):
+            raise ValueError(f"percentile must be in (0, 1), got {self.percentile}")
 
 
 @dataclass(frozen=True)
@@ -129,11 +183,28 @@ class ThroughputTarget:
         percentile: Target percentile for required capacity.
         max_overload_probability: Maximum acceptable probability of overload.
         windows_s: Time window sizes for bucket analysis.
+
+    Raises:
+        ValueError: If percentile not in (0, 1) or max_overload_probability not in [0, 1].
     """
 
     percentile: Percentile | None = 0.99
     max_overload_probability: float | None = None
     windows_s: tuple[float, ...] = (1.0, 5.0, 30.0)
+
+    def __post_init__(self) -> None:
+        if self.percentile is not None and not (0 < self.percentile < 1):
+            raise ValueError(f"percentile must be in (0, 1), got {self.percentile}")
+        if self.max_overload_probability is not None and not (
+            0 <= self.max_overload_probability <= 1
+        ):
+            raise ValueError(
+                f"max_overload_probability must be in [0, 1], got {self.max_overload_probability}"
+            )
+        if not self.windows_s:
+            raise ValueError("windows_s must not be empty")
+        if any(w <= 0 for w in self.windows_s):
+            raise ValueError("all windows_s values must be positive")
 
     def label(self) -> str:
         """Generate a human-readable label for this target.
@@ -214,16 +285,25 @@ class PlanOptions:
     """Options for capacity planning.
 
     Attributes:
-        output_token_source: Use "observed" or "max_output_tokens" for planning.
+        output_token_source: Use OBSERVED or MAX_OUTPUT_TOKENS for planning.
         max_units_to_search: Maximum capacity units to consider during search.
         headroom_factor: Additional capacity buffer as a fraction (e.g., 0.1 for 10%).
         baseline_latency_model: Custom latency model; if None, one is fitted.
+
+    Raises:
+        ValueError: If max_units_to_search < 1 or headroom_factor < 0.
     """
 
-    output_token_source: Literal["observed", "max_output_tokens"] = "observed"
+    output_token_source: OutputTokenSource = OutputTokenSource.OBSERVED
     max_units_to_search: int = 200
     headroom_factor: float = 0.0
     baseline_latency_model: BaselineLatencyModel | None = None
+
+    def __post_init__(self) -> None:
+        if self.max_units_to_search < 1:
+            raise ValueError(f"max_units_to_search must be >= 1, got {self.max_units_to_search}")
+        if self.headroom_factor < 0:
+            raise ValueError(f"headroom_factor must be non-negative, got {self.headroom_factor}")
 
 
 @dataclass

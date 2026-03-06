@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "slosizer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Capacity planning for reserved LLM throughput: latency, headroom, and synthetic workload simulation."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -48,6 +48,9 @@ docs = [
   "myst-parser",
   "sphinx-autodoc-typehints",
 ]
+app = [
+  "streamlit>=1.30",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/slosizer"]
@@ -71,7 +74,7 @@ select = [
   "SIM",
   "D",
 ]
-ignore = ["E501"]
+ignore = ["E501", "D105"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D"]
