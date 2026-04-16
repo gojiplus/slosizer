@@ -88,6 +88,14 @@ def _compute_hybrid_cost(
 ) -> dict[str, float]:
     """Compute hybrid costs for a given provisioned capacity level.
 
+    Args:
+        trace: Request trace to analyze.
+        profile: Capacity profile with throughput settings.
+        pricing: Hybrid pricing model with provisioned and paygo costs.
+        units: Number of provisioned capacity units.
+        window_s: Time window size for bucket analysis.
+        output_token_source: Source for output tokens.
+
     Returns:
         Dictionary with cost breakdown.
     """
