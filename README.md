@@ -27,6 +27,7 @@ Reserved-capacity systems like GSU/PTU are fundamentally **throughput constructs
 3. plan capacity for either:
    - **throughput**: control overload probability or required-unit percentile,
    - **latency**: satisfy p95/p99 queue-aware latency targets,
+   - **hybrid**: balance provisioned cost against paygo overflow,
 4. quantify:
    - spare capacity,
    - overload probability,
@@ -187,6 +188,37 @@ result = slz.plan_capacity(
 print(result.recommended_units)
 print(result.slack_summary)
 ```
+
+### Hybrid capacity planning
+
+When you don't want to provision for peak load:
+
+```python
+import slosizer as slz
+
+trace = slz.make_synthetic_trace(seed=42)
+profile = slz.vertex_profile("gemini-2.5-flash")
+
+pricing = slz.HybridPricingModel(
+    provisioned=slz.ProvisionedPricing(cost_per_unit_hour=2.50),
+    paygo=slz.PaygoPricing(
+        input_cost_per_million=0.30 * 1.8,   # priority tier
+        output_cost_per_million=2.50 * 1.8,
+    ),
+)
+
+result = slz.plan_hybrid_capacity(
+    trace, profile, pricing,
+    slz.HybridTarget(strategy="cost_optimal"),
+)
+
+print(f"Provision {result.provisioned_units} GSUs + paygo overflow")
+print(f"Saves ${result.savings_vs_full_provision:.2f}/hr ({result.savings_percent:.0f}%)")
+```
+
+Two strategies:
+- **cost_optimal**: finds the cheapest blend of provisioned + paygo
+- **percentile_split**: provisions at a given percentile (e.g., p50), rest goes to paygo
 
 ### Azure PTU example
 

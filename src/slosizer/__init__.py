@@ -5,6 +5,7 @@ cloud LLM providers (Vertex AI GSU, Azure PTU) based on your workload
 characteristics and SLO targets.
 """
 
+from slosizer.hybrid import plan_hybrid_capacity
 from slosizer.ingest import from_dataframe
 from slosizer.planning import compare_scenarios, plan_capacity
 from slosizer.plotting import (
@@ -18,12 +19,17 @@ from slosizer.providers.vertex import available_vertex_profiles, vertex_profile
 from slosizer.schema import (
     BaselineLatencyModel,
     CapacityProfile,
+    HybridPlanResult,
+    HybridPricingModel,
+    HybridTarget,
     LatencyMetric,
     LatencySLO,
     LatencyTarget,
     OutputTokenSource,
+    PaygoPricing,
     PlanOptions,
     PlanResult,
+    ProvisionedPricing,
     RequestSchema,
     RequestTrace,
     SimulationResult,
@@ -35,12 +41,17 @@ from slosizer.synthetic import make_synthetic_trace, optimize_trace
 __all__ = [
     "BaselineLatencyModel",
     "CapacityProfile",
+    "HybridPlanResult",
+    "HybridPricingModel",
+    "HybridTarget",
     "LatencyMetric",
     "LatencySLO",
     "LatencyTarget",
     "OutputTokenSource",
+    "PaygoPricing",
     "PlanOptions",
     "PlanResult",
+    "ProvisionedPricing",
     "RequestSchema",
     "RequestTrace",
     "SimulationResult",
@@ -53,6 +64,7 @@ __all__ = [
     "make_synthetic_trace",
     "optimize_trace",
     "plan_capacity",
+    "plan_hybrid_capacity",
     "plot_capacity_tradeoff",
     "plot_latency_vs_units",
     "plot_required_units_distribution",

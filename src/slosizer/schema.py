@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 Percentile = float
+HybridStrategy = Literal["cost_optimal", "percentile_split"]
 
 
 class OutputTokenSource(StrEnum):
@@ -369,3 +370,162 @@ class PlanResult:
             }
         )
         return row
+
+
+@dataclass(frozen=True)
+class PaygoPricing:
+    """Per-token pricing for overflow traffic.
+
+    Attributes:
+        input_cost_per_million: Cost per million input tokens.
+        output_cost_per_million: Cost per million output tokens.
+
+    Raises:
+        ValueError: If costs are negative.
+    """
+
+    input_cost_per_million: float
+    output_cost_per_million: float
+
+    def __post_init__(self) -> None:
+        if self.input_cost_per_million < 0:
+            raise ValueError(
+                f"input_cost_per_million must be non-negative, got {self.input_cost_per_million}"
+            )
+        if self.output_cost_per_million < 0:
+            raise ValueError(
+                f"output_cost_per_million must be non-negative, got {self.output_cost_per_million}"
+            )
+
+
+@dataclass(frozen=True)
+class ProvisionedPricing:
+    """Hourly cost for provisioned capacity.
+
+    Attributes:
+        cost_per_unit_hour: Cost per capacity unit per hour.
+
+    Raises:
+        ValueError: If cost is negative.
+    """
+
+    cost_per_unit_hour: float
+
+    def __post_init__(self) -> None:
+        if self.cost_per_unit_hour < 0:
+            raise ValueError(
+                f"cost_per_unit_hour must be non-negative, got {self.cost_per_unit_hour}"
+            )
+
+
+@dataclass(frozen=True)
+class HybridPricingModel:
+    """Combined pricing for hybrid capacity planning.
+
+    Attributes:
+        provisioned: Hourly cost for provisioned capacity.
+        paygo: Per-token pricing for overflow traffic.
+    """
+
+    provisioned: ProvisionedPricing
+    paygo: PaygoPricing
+
+
+@dataclass(frozen=True)
+class HybridTarget:
+    """Target for hybrid capacity planning.
+
+    Attributes:
+        strategy: Planning strategy - "cost_optimal" or "percentile_split".
+        provision_percentile: Percentile to provision for (required if strategy="percentile_split").
+        latency_slo: Optional latency SLO constraint.
+
+    Raises:
+        ValueError: If strategy is "percentile_split" but provision_percentile is not set,
+            or if provision_percentile is not in (0, 1).
+    """
+
+    strategy: HybridStrategy
+    provision_percentile: float | None = None
+    latency_slo: "LatencySLO | None" = None
+
+    def __post_init__(self) -> None:
+        if self.strategy == "percentile_split" and self.provision_percentile is None:
+            raise ValueError("provision_percentile is required when strategy='percentile_split'")
+        if self.provision_percentile is not None and not (0 < self.provision_percentile < 1):
+            raise ValueError(
+                f"provision_percentile must be in (0, 1), got {self.provision_percentile}"
+            )
+
+    def label(self) -> str:
+        """Generate a human-readable label for this target.
+
+        Returns:
+            Descriptive label string.
+        """
+        if self.strategy == "cost_optimal":
+            label = "hybrid-cost-optimal"
+        else:
+            pct = int(self.provision_percentile * 100) if self.provision_percentile else 0
+            label = f"hybrid-p{pct}-split"
+        if self.latency_slo is not None:
+            label += f"-slo-p{int(self.latency_slo.percentile * 100)}<={self.latency_slo.threshold_s:.1f}s"
+        return label
+
+
+@dataclass
+class HybridPlanResult:
+    """Results from hybrid capacity planning.
+
+    Attributes:
+        provisioned_units: Number of provisioned capacity units.
+        unit_name: Name of capacity unit (e.g., "GSU", "PTU").
+        provisioned_cost_hourly: Hourly cost of provisioned capacity.
+        paygo_cost_hourly: Hourly cost of overflow to paygo.
+        total_cost_hourly: Total hourly cost (provisioned + paygo).
+        full_provision_units: Units needed if provisioning for 100% of traffic.
+        full_provision_cost_hourly: Hourly cost if fully provisioned.
+        savings_vs_full_provision: Dollar savings per hour vs full provision.
+        savings_percent: Percentage savings vs full provision.
+        overflow_fraction: Fraction of time buckets with overflow.
+        overflow_input_tokens_hourly: Average overflow input tokens per hour.
+        overflow_output_tokens_hourly: Average overflow output tokens per hour.
+        slack_summary: Spare capacity statistics by time window.
+        assumptions: Planning parameters and settings.
+    """
+
+    provisioned_units: int
+    unit_name: str
+    provisioned_cost_hourly: float
+    paygo_cost_hourly: float
+    total_cost_hourly: float
+    full_provision_units: int
+    full_provision_cost_hourly: float
+    savings_vs_full_provision: float
+    savings_percent: float
+    overflow_fraction: float
+    overflow_input_tokens_hourly: float
+    overflow_output_tokens_hourly: float
+    slack_summary: pd.DataFrame
+    assumptions: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Convert result to a flat dictionary.
+
+        Returns:
+            Dictionary with all metrics and metadata.
+        """
+        return {
+            "provisioned_units": self.provisioned_units,
+            "unit_name": self.unit_name,
+            "provisioned_cost_hourly": self.provisioned_cost_hourly,
+            "paygo_cost_hourly": self.paygo_cost_hourly,
+            "total_cost_hourly": self.total_cost_hourly,
+            "full_provision_units": self.full_provision_units,
+            "full_provision_cost_hourly": self.full_provision_cost_hourly,
+            "savings_vs_full_provision": self.savings_vs_full_provision,
+            "savings_percent": self.savings_percent,
+            "overflow_fraction": self.overflow_fraction,
+            "overflow_input_tokens_hourly": self.overflow_input_tokens_hourly,
+            "overflow_output_tokens_hourly": self.overflow_output_tokens_hourly,
+        }

@@ -139,6 +139,110 @@ def bucket_required_units(
     return pd.DataFrame(rows)
 
 
+def bucket_with_tokens(
+    frame: pd.DataFrame,
+    profile: CapacityProfile,
+    *,
+    units: int,
+    window_s: float,
+    output_token_source: str,
+) -> pd.DataFrame:
+    """Compute required units and token counts per time bucket.
+
+    Similar to bucket_required_units but also tracks raw token counts per bucket
+    for overflow cost calculation. Uses a single window size for efficiency.
+
+    Args:
+        frame: DataFrame with canonical columns.
+        profile: Capacity profile with throughput settings.
+        units: Reserved capacity units to compare against.
+        window_s: Time window size in seconds.
+        output_token_source: Source for output tokens.
+
+    Returns:
+        DataFrame with required_units, overflow metrics, and token counts per bucket.
+
+    Raises:
+        ValueError: If profile.throughput_per_unit is not set.
+    """
+    from slosizer._utils import selected_output_tokens
+
+    if profile.throughput_per_unit is None:
+        raise ValueError("profile.throughput_per_unit must be set before simulation.")
+
+    arrivals = frame["arrival_s"].to_numpy(dtype=float)
+    work = adjusted_work(frame, profile, output_token_source=output_token_source)
+
+    input_tokens = frame["input_tokens"].to_numpy(dtype=float)
+    cached_input = frame["cached_input_tokens"].to_numpy(dtype=float)
+    output_tokens = selected_output_tokens(frame, output_token_source)
+    thinking_tokens = frame["thinking_tokens"].to_numpy(dtype=float)
+
+    if len(arrivals) == 0:
+        return pd.DataFrame(
+            columns=[
+                "bucket_start_s",
+                "window_s",
+                "required_units",
+                "overflow_units",
+                "overflow_fraction",
+                "input_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "thinking_tokens",
+                "total_work",
+            ]
+        )
+
+    max_time = float(arrivals.max())
+    edges = np.arange(0.0, max_time + window_s, window_s)
+    if len(edges) < 2:
+        edges = np.array([0.0, window_s], dtype=float)
+
+    n_buckets = len(edges) - 1
+    bucket_index = np.digitize(arrivals, edges, right=False) - 1
+
+    bucket_work = np.zeros(n_buckets, dtype=float)
+    bucket_input = np.zeros(n_buckets, dtype=float)
+    bucket_cached = np.zeros(n_buckets, dtype=float)
+    bucket_output = np.zeros(n_buckets, dtype=float)
+    bucket_thinking = np.zeros(n_buckets, dtype=float)
+
+    scale = float(profile.throughput_per_unit) * float(window_s)
+
+    for i, (idx, w) in enumerate(zip(bucket_index, work, strict=True)):
+        if 0 <= idx < n_buckets:
+            bucket_work[idx] += w
+            bucket_input[idx] += input_tokens[i]
+            bucket_cached[idx] += cached_input[i]
+            bucket_output[idx] += output_tokens[i]
+            bucket_thinking[idx] += thinking_tokens[i]
+
+    required_units = bucket_work / scale
+    capacity = float(units)
+    overflow_units = np.maximum(0.0, required_units - capacity)
+    overflow_fraction = np.where(
+        required_units > 0,
+        np.minimum(1.0, overflow_units / required_units),
+        0.0,
+    )
+
+    return pd.DataFrame(
+        {
+            "bucket_start_s": edges[:-1],
+            "window_s": float(window_s),
+            "required_units": required_units,
+            "overflow_units": overflow_units,
+            "overflow_fraction": overflow_fraction,
+            "input_tokens": bucket_input,
+            "cached_input_tokens": bucket_cached,
+            "output_tokens": bucket_output,
+            "thinking_tokens": bucket_thinking,
+            "total_work": bucket_work,
+        }
+    )
+
+
 def summarize_slack(slack_table: pd.DataFrame) -> pd.DataFrame:
     """Summarize spare capacity statistics by time window.
 
