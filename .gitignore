@@ -13,5 +13,5 @@ examples/output/*
 docs/assets/generated/*
 !docs/assets/generated/.gitkeep
 .DS_Store
-/docs/_build/html
+/docs/_build/
 .streamlit/
