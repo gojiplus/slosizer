@@ -18,10 +18,16 @@ from slosizer.schema import (
     RequestTrace,
     ThroughputTarget,
 )
-from slosizer.simulation import bucket_required_units, simulate_capacity, summarize_slack
+from slosizer.simulation import (
+    bucket_required_units,
+    simulate_capacity,
+    summarize_slack,
+)
 
 
-def _candidate_units(min_units: int, purchase_increment: int, max_units: int) -> list[int]:
+def _candidate_units(
+    min_units: int, purchase_increment: int, max_units: int
+) -> list[int]:
     """Generate candidate unit counts for capacity search."""
     return list(range(min_units, max_units + 1, purchase_increment))
 
@@ -31,14 +37,13 @@ def _flatten_slack_summary(slack_summary: pd.DataFrame) -> dict[str, float]:
     metrics: dict[str, float] = {}
     if slack_summary.empty:
         return metrics
-    for row in slack_summary.itertuples(index=False):
-        suffix = (
-            str(int(float(row.window_s))) if float(row.window_s).is_integer() else str(row.window_s)
-        )
-        metrics[f"avg_spare_units_{suffix}s"] = float(row.avg_spare_units)
-        metrics[f"avg_spare_fraction_{suffix}s"] = float(row.avg_spare_fraction)
-        metrics[f"overload_probability_{suffix}s"] = float(row.overload_probability)
-        metrics[f"p99_required_units_{suffix}s"] = float(row.p99_required_units)
+    for row in slack_summary.to_dict(orient="records"):
+        window_s = float(row["window_s"])
+        suffix = str(int(window_s)) if window_s.is_integer() else str(row["window_s"])
+        metrics[f"avg_spare_units_{suffix}s"] = float(row["avg_spare_units"])
+        metrics[f"avg_spare_fraction_{suffix}s"] = float(row["avg_spare_fraction"])
+        metrics[f"overload_probability_{suffix}s"] = float(row["overload_probability"])
+        metrics[f"p99_required_units_{suffix}s"] = float(row["p99_required_units"])
     metrics["worst_window_overload_probability"] = float(
         slack_summary["overload_probability"].max()
     )
@@ -62,11 +67,15 @@ def _plan_throughput(
 
     floor_units = float(profile.min_units)
     if target.percentile is not None:
-        quantiles = base_table.groupby("window_s")["required_units"].quantile(target.percentile)
+        quantiles = base_table.groupby("window_s")["required_units"].quantile(
+            target.percentile
+        )
         floor_units = max(floor_units, float(quantiles.max()))
 
     floor_units = float(
-        round_up_to_increment(floor_units, profile.min_units, profile.purchase_increment)
+        round_up_to_increment(
+            floor_units, profile.min_units, profile.purchase_increment
+        )
     )
     floor_units = float(
         round_up_to_increment(
@@ -93,7 +102,10 @@ def _plan_throughput(
             recommended = units
             slack_summary = summary
             break
-        if float(summary["overload_probability"].max()) <= target.max_overload_probability:
+        if (
+            float(summary["overload_probability"].max())
+            <= target.max_overload_probability
+        ):
             recommended = units
             slack_summary = summary
             break
@@ -141,7 +153,9 @@ def _plan_latency(
     options: PlanOptions,
 ) -> PlanResult:
     """Plan capacity for a latency target."""
-    metric_col = "total_latency_s" if str(target.slo.metric) == "e2e" else "queue_delay_s"
+    metric_col = (
+        "total_latency_s" if str(target.slo.metric) == "e2e" else "queue_delay_s"
+    )
     recommended_base = None
 
     for units in _candidate_units(
@@ -170,14 +184,16 @@ def _plan_latency(
         profile.purchase_increment,
     )
     simulation = simulate_capacity(trace, profile, units=recommended, options=options)
-    final_quantile = float(np.quantile(simulation.request_level[metric_col], target.slo.percentile))
+    final_quantile = float(
+        np.quantile(simulation.request_level[metric_col], target.slo.percentile)
+    )
     latency_row = simulation.latency_summary.iloc[0].to_dict()
     metrics: dict[str, float | str] = {
         "achieved_latency_quantile_s": final_quantile,
         "latency_percentile": float(target.slo.percentile),
         "latency_threshold_s": float(target.slo.threshold_s),
         "latency_metric": target.slo.metric,
-        **{key: float(value) for key, value in latency_row.items()},
+        **{str(key): float(value) for key, value in latency_row.items()},
         **_flatten_slack_summary(simulation.slack_summary),
     }
     assumptions = dict(simulation.assumptions)
@@ -262,5 +278,7 @@ def compare_scenarios(
             row["scenario"] = scenario_name
             rows.append(row)
     return (
-        pd.DataFrame(rows).sort_values(["scenario", "objective", "target"]).reset_index(drop=True)
+        pd.DataFrame(rows)
+        .sort_values(["scenario", "objective", "target"])
+        .reset_index(drop=True)
     )

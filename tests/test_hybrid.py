@@ -98,7 +98,9 @@ def standard_pricing():
 
 class TestPaygoPricing:
     def test_valid_pricing(self):
-        pricing = PaygoPricing(input_cost_per_million=0.30, output_cost_per_million=2.50)
+        pricing = PaygoPricing(
+            input_cost_per_million=0.30, output_cost_per_million=2.50
+        )
         assert pricing.input_cost_per_million == 0.30
         assert pricing.output_cost_per_million == 2.50
 
@@ -108,11 +110,15 @@ class TestPaygoPricing:
         assert pricing.output_cost_per_million == 0.0
 
     def test_negative_input_cost_raises(self):
-        with pytest.raises(ValueError, match="input_cost_per_million must be non-negative"):
+        with pytest.raises(
+            ValueError, match="input_cost_per_million must be non-negative"
+        ):
             PaygoPricing(input_cost_per_million=-0.30, output_cost_per_million=2.50)
 
     def test_negative_output_cost_raises(self):
-        with pytest.raises(ValueError, match="output_cost_per_million must be non-negative"):
+        with pytest.raises(
+            ValueError, match="output_cost_per_million must be non-negative"
+        ):
             PaygoPricing(input_cost_per_million=0.30, output_cost_per_million=-2.50)
 
 
@@ -147,10 +153,14 @@ class TestHybridTarget:
             HybridTarget(strategy="percentile_split")
 
     def test_invalid_percentile_raises(self):
-        with pytest.raises(ValueError, match="provision_percentile must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="provision_percentile must be in \\(0, 1\\)"
+        ):
             HybridTarget(strategy="percentile_split", provision_percentile=1.5)
 
-        with pytest.raises(ValueError, match="provision_percentile must be in \\(0, 1\\)"):
+        with pytest.raises(
+            ValueError, match="provision_percentile must be in \\(0, 1\\)"
+        ):
             HybridTarget(strategy="percentile_split", provision_percentile=0.0)
 
     def test_with_latency_slo(self):
@@ -287,7 +297,9 @@ class TestComputeOverflowTokens:
 class TestPlanHybridCapacity:
     def test_cost_optimal_basic(self, simple_profile, simple_trace, standard_pricing):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         assert isinstance(result, HybridPlanResult)
         assert result.provisioned_units >= 0
@@ -296,22 +308,32 @@ class TestPlanHybridCapacity:
             result.provisioned_cost_hourly + result.paygo_cost_hourly
         )
 
-    def test_percentile_split_basic(self, simple_profile, simple_trace, standard_pricing):
+    def test_percentile_split_basic(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
         target = HybridTarget(strategy="percentile_split", provision_percentile=0.50)
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         assert isinstance(result, HybridPlanResult)
         assert result.provisioned_units >= 0
 
-    def test_hybrid_cost_le_full_provision(self, simple_profile, bursty_trace, standard_pricing):
+    def test_hybrid_cost_le_full_provision(
+        self, simple_profile, bursty_trace, standard_pricing
+    ):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(bursty_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            bursty_trace, simple_profile, standard_pricing, target
+        )
 
         assert result.total_cost_hourly <= result.full_provision_cost_hourly + 0.01
 
     def test_savings_calculation(self, simple_profile, bursty_trace, standard_pricing):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(bursty_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            bursty_trace, simple_profile, standard_pricing, target
+        )
 
         expected_savings = result.full_provision_cost_hourly - result.total_cost_hourly
         assert result.savings_vs_full_provision == pytest.approx(expected_savings)
@@ -323,7 +345,9 @@ class TestPlanHybridCapacity:
     def test_with_latency_slo(self, simple_profile, simple_trace, standard_pricing):
         slo = LatencySLO(threshold_s=2.0, percentile=0.99)
         target = HybridTarget(strategy="cost_optimal", latency_slo=slo)
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         assert result.provisioned_units >= 0
 
@@ -336,7 +360,9 @@ class TestPlanHybridCapacity:
             ),
         )
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, expensive_provisioned, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, expensive_provisioned, target
+        )
 
         assert result.provisioned_units == 0
         assert result.paygo_cost_hourly > 0
@@ -350,21 +376,33 @@ class TestPlanHybridCapacity:
             ),
         )
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, expensive_paygo, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, expensive_paygo, target
+        )
 
         assert result.provisioned_units > 0
         assert result.paygo_cost_hourly == pytest.approx(0.0, abs=0.01)
 
-    def test_headroom_factor_applied(self, simple_profile, simple_trace, standard_pricing):
+    def test_headroom_factor_applied(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
         target = HybridTarget(strategy="percentile_split", provision_percentile=0.50)
         options_no_headroom = PlanOptions(headroom_factor=0.0)
         options_with_headroom = PlanOptions(headroom_factor=0.20)
 
         result_no = plan_hybrid_capacity(
-            simple_trace, simple_profile, standard_pricing, target, options=options_no_headroom
+            simple_trace,
+            simple_profile,
+            standard_pricing,
+            target,
+            options=options_no_headroom,
         )
         result_with = plan_hybrid_capacity(
-            simple_trace, simple_profile, standard_pricing, target, options=options_with_headroom
+            simple_trace,
+            simple_profile,
+            standard_pricing,
+            target,
+            options=options_with_headroom,
         )
 
         assert result_with.provisioned_units >= result_no.provisioned_units
@@ -380,25 +418,35 @@ class TestPlanHybridCapacity:
         with pytest.raises(ValueError, match="throughput_per_unit must be set"):
             plan_hybrid_capacity(simple_trace, profile, standard_pricing, target)
 
-    def test_result_has_slack_summary(self, simple_profile, simple_trace, standard_pricing):
+    def test_result_has_slack_summary(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         assert result.slack_summary is not None
         assert len(result.slack_summary) > 0
 
     def test_result_as_dict(self, simple_profile, simple_trace, standard_pricing):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         result_dict = result.as_dict()
         assert "provisioned_units" in result_dict
         assert "total_cost_hourly" in result_dict
         assert "savings_percent" in result_dict
 
-    def test_assumptions_populated(self, simple_profile, simple_trace, standard_pricing):
+    def test_assumptions_populated(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
         target = HybridTarget(strategy="cost_optimal")
-        result = plan_hybrid_capacity(simple_trace, simple_profile, standard_pricing, target)
+        result = plan_hybrid_capacity(
+            simple_trace, simple_profile, standard_pricing, target
+        )
 
         assert "strategy" in result.assumptions
         assert "provisioned_cost_per_unit_hour" in result.assumptions

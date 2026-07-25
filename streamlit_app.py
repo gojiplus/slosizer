@@ -24,7 +24,12 @@ from slosizer import (
 from slosizer.providers.vertex import available_vertex_profiles, vertex_profile
 from slosizer.simulation import bucket_required_units, simulate_capacity
 
-EXAMPLE_CSV = Path(__file__).parent / "examples" / "input" / "synthetic_request_trace_baseline.csv"
+EXAMPLE_CSV = (
+    Path(__file__).parent
+    / "examples"
+    / "input"
+    / "synthetic_request_trace_baseline.csv"
+)
 
 
 def load_example_data() -> pd.DataFrame:
@@ -39,7 +44,9 @@ def infer_schema(df: pd.DataFrame) -> RequestSchema:
     time_col = "arrival_s" if "arrival_s" in cols else "ts"
     class_col = "class_name" if "class_name" in cols else None
     input_tokens_col = "input_tokens"
-    cached_input_tokens_col = "cached_input_tokens" if "cached_input_tokens" in cols else None
+    cached_input_tokens_col = (
+        "cached_input_tokens" if "cached_input_tokens" in cols else None
+    )
     output_tokens_col = "output_tokens"
     thinking_tokens_col = "thinking_tokens" if "thinking_tokens" in cols else None
     max_output_tokens_col = "max_output_tokens" if "max_output_tokens" in cols else None
@@ -94,7 +101,9 @@ def main() -> None:
         selected_profile = st.selectbox(
             "Vertex AI Model",
             profiles,
-            index=profiles.index("gemini-2.5-flash") if "gemini-2.5-flash" in profiles else 0,
+            index=profiles.index("gemini-2.5-flash")
+            if "gemini-2.5-flash" in profiles
+            else 0,
         )
 
         st.divider()
@@ -127,7 +136,9 @@ def main() -> None:
             metric = st.selectbox(
                 "Metric",
                 ["e2e", "queue_delay"],
-                format_func=lambda x: "End-to-end" if x == "e2e" else "Queue delay only",
+                format_func=lambda x: (
+                    "End-to-end" if x == "e2e" else "Queue delay only"
+                ),
             )
         elif target_type == "Throughput":
             throughput_percentile = (
@@ -154,7 +165,9 @@ def main() -> None:
             hybrid_strategy = st.radio(
                 "Strategy",
                 ["cost_optimal", "percentile_split"],
-                format_func=lambda x: "Cost Optimal" if x == "cost_optimal" else "Percentile Split",
+                format_func=lambda x: (
+                    "Cost Optimal" if x == "cost_optimal" else "Percentile Split"
+                ),
                 label_visibility="collapsed",
             )
             if hybrid_strategy == "percentile_split":
@@ -233,7 +246,9 @@ def main() -> None:
 
         st.divider()
 
-        run_button = st.button("Plan Capacity", type="primary", use_container_width=True)
+        run_button = st.button(
+            "Plan Capacity", type="primary", use_container_width=True
+        )
 
     if df is not None and run_button:
         try:
@@ -293,7 +308,9 @@ def main() -> None:
 
                 st.divider()
 
-                tab1, tab2, tab3 = st.tabs(["Cost Breakdown", "Comparison", "Distribution"])
+                tab1, tab2, tab3 = st.tabs(
+                    ["Cost Breakdown", "Comparison", "Distribution"]
+                )
 
                 with tab1:
                     st.subheader("Cost Breakdown")
@@ -318,7 +335,9 @@ def main() -> None:
                     st.dataframe(pd.DataFrame(overflow_data), use_container_width=True)
 
                     st.subheader("Slack Summary")
-                    st.dataframe(hybrid_result.slack_summary.round(4), use_container_width=True)
+                    st.dataframe(
+                        hybrid_result.slack_summary.round(4), use_container_width=True
+                    )
 
                 with tab2:
                     st.subheader("Hybrid vs Full Provisioning")
@@ -339,12 +358,15 @@ def main() -> None:
                             hybrid_result.full_provision_cost_hourly * 24 * 30,
                         ],
                         "Savings": [
-                            hybrid_result.full_provision_units - hybrid_result.provisioned_units,
+                            hybrid_result.full_provision_units
+                            - hybrid_result.provisioned_units,
                             hybrid_result.savings_vs_full_provision,
                             hybrid_result.savings_vs_full_provision * 24 * 30,
                         ],
                     }
-                    st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+                    st.dataframe(
+                        pd.DataFrame(comparison_data), use_container_width=True
+                    )
 
                 with tab3:
                     st.subheader("Required Units Distribution")
@@ -419,7 +441,9 @@ def main() -> None:
 
                 st.divider()
 
-                tab1, tab2, tab3 = st.tabs(["Metrics", "Latency vs Units", "Distribution"])
+                tab1, tab2, tab3 = st.tabs(
+                    ["Metrics", "Latency vs Units", "Distribution"]
+                )
 
                 with tab1:
                     st.subheader("Planning Metrics")
@@ -429,10 +453,14 @@ def main() -> None:
 
                     if result.latency_summary is not None:
                         st.subheader("Latency Summary")
-                        st.dataframe(result.latency_summary.round(4), use_container_width=True)
+                        st.dataframe(
+                            result.latency_summary.round(4), use_container_width=True
+                        )
 
                     st.subheader("Slack Summary")
-                    st.dataframe(result.slack_summary.round(4), use_container_width=True)
+                    st.dataframe(
+                        result.slack_summary.round(4), use_container_width=True
+                    )
 
                 with tab2:
                     st.subheader("Latency vs Provisioned Units")
@@ -444,7 +472,9 @@ def main() -> None:
 
                     rows = []
                     for unit in units_range:
-                        simulation = simulate_capacity(trace, profile, units=unit, options=options)
+                        simulation = simulate_capacity(
+                            trace, profile, units=unit, options=options
+                        )
                         summary = simulation.latency_summary.iloc[0]
                         rows.append(
                             {
@@ -456,15 +486,24 @@ def main() -> None:
 
                     plot_df = pd.DataFrame(rows)
                     ax.plot(
-                        plot_df["units"], plot_df["p95_latency_s"], marker="o", label="p95 latency"
+                        plot_df["units"],
+                        plot_df["p95_latency_s"],
+                        marker="o",
+                        label="p95 latency",
                     )
                     ax.plot(
-                        plot_df["units"], plot_df["p99_latency_s"], marker="s", label="p99 latency"
+                        plot_df["units"],
+                        plot_df["p99_latency_s"],
+                        marker="s",
+                        label="p99 latency",
                     )
 
                     if target_type == "Latency SLO":
                         ax.axhline(
-                            threshold_s, linestyle="--", color="red", label="target threshold"
+                            threshold_s,
+                            linestyle="--",
+                            color="red",
+                            label="target threshold",
                         )
 
                     ax.axvline(

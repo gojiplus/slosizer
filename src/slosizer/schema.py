@@ -137,19 +137,27 @@ class CapacityProfile:
                 f"throughput_per_unit must be positive, got {self.throughput_per_unit}"
             )
         if self.purchase_increment < 1:
-            raise ValueError(f"purchase_increment must be >= 1, got {self.purchase_increment}")
+            raise ValueError(
+                f"purchase_increment must be >= 1, got {self.purchase_increment}"
+            )
         if self.min_units < 1:
             raise ValueError(f"min_units must be >= 1, got {self.min_units}")
         if self.input_weight < 0:
-            raise ValueError(f"input_weight must be non-negative, got {self.input_weight}")
+            raise ValueError(
+                f"input_weight must be non-negative, got {self.input_weight}"
+            )
         if self.cached_input_weight < 0:
             raise ValueError(
                 f"cached_input_weight must be non-negative, got {self.cached_input_weight}"
             )
         if self.output_weight < 0:
-            raise ValueError(f"output_weight must be non-negative, got {self.output_weight}")
+            raise ValueError(
+                f"output_weight must be non-negative, got {self.output_weight}"
+            )
         if self.thinking_weight < 0:
-            raise ValueError(f"thinking_weight must be non-negative, got {self.thinking_weight}")
+            raise ValueError(
+                f"thinking_weight must be non-negative, got {self.thinking_weight}"
+            )
 
 
 @dataclass(frozen=True)
@@ -274,7 +282,8 @@ class BaselineLatencyModel:
         values = (
             self.intercept_s
             + self.input_token_s * frame["input_tokens"].to_numpy(dtype=float)
-            + self.cached_input_token_s * frame["cached_input_tokens"].to_numpy(dtype=float)
+            + self.cached_input_token_s
+            * frame["cached_input_tokens"].to_numpy(dtype=float)
             + self.output_token_s * frame["output_tokens"].to_numpy(dtype=float)
             + self.thinking_token_s * frame["thinking_tokens"].to_numpy(dtype=float)
         )
@@ -302,9 +311,13 @@ class PlanOptions:
 
     def __post_init__(self) -> None:
         if self.max_units_to_search < 1:
-            raise ValueError(f"max_units_to_search must be >= 1, got {self.max_units_to_search}")
+            raise ValueError(
+                f"max_units_to_search must be >= 1, got {self.max_units_to_search}"
+            )
         if self.headroom_factor < 0:
-            raise ValueError(f"headroom_factor must be non-negative, got {self.headroom_factor}")
+            raise ValueError(
+                f"headroom_factor must be non-negative, got {self.headroom_factor}"
+            )
 
 
 @dataclass
@@ -451,8 +464,12 @@ class HybridTarget:
 
     def __post_init__(self) -> None:
         if self.strategy == "percentile_split" and self.provision_percentile is None:
-            raise ValueError("provision_percentile is required when strategy='percentile_split'")
-        if self.provision_percentile is not None and not (0 < self.provision_percentile < 1):
+            raise ValueError(
+                "provision_percentile is required when strategy='percentile_split'"
+            )
+        if self.provision_percentile is not None and not (
+            0 < self.provision_percentile < 1
+        ):
             raise ValueError(
                 f"provision_percentile must be in (0, 1), got {self.provision_percentile}"
             )
@@ -466,7 +483,9 @@ class HybridTarget:
         if self.strategy == "cost_optimal":
             label = "hybrid-cost-optimal"
         else:
-            pct = int(self.provision_percentile * 100) if self.provision_percentile else 0
+            pct = (
+                int(self.provision_percentile * 100) if self.provision_percentile else 0
+            )
             label = f"hybrid-p{pct}-split"
         if self.latency_slo is not None:
             label += f"-slo-p{int(self.latency_slo.percentile * 100)}<={self.latency_slo.threshold_s:.1f}s"

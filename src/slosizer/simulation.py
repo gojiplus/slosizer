@@ -58,7 +58,7 @@ def fit_baseline_latency_model(trace: RequestTrace) -> BaselineLatencyModel:
             valid_frame["thinking_tokens"].to_numpy(dtype=float),
         ]
     )
-    target = observed[valid_mask].to_numpy(dtype=float)
+    target = observed.loc[valid_mask].to_numpy(dtype=float)
     coeffs, *_ = np.linalg.lstsq(design, target, rcond=None)
     coeffs = np.maximum(coeffs, 0.0)
     return BaselineLatencyModel(
@@ -103,14 +103,16 @@ def bucket_required_units(
     work = adjusted_work(frame, profile, output_token_source=output_token_source)
     if len(arrivals) == 0:
         return pd.DataFrame(
-            columns=[
-                "window_s",
-                "bucket_start_s",
-                "required_units",
-                "spare_units",
-                "overflow_units",
-                "reserved_units",
-            ]
+            columns=pd.Index(
+                [
+                    "window_s",
+                    "bucket_start_s",
+                    "required_units",
+                    "spare_units",
+                    "overflow_units",
+                    "reserved_units",
+                ]
+            )
         )
 
     rows: list[dict[str, float]] = []
@@ -180,18 +182,20 @@ def bucket_with_tokens(
 
     if len(arrivals) == 0:
         return pd.DataFrame(
-            columns=[
-                "bucket_start_s",
-                "window_s",
-                "required_units",
-                "overflow_units",
-                "overflow_fraction",
-                "input_tokens",
-                "cached_input_tokens",
-                "output_tokens",
-                "thinking_tokens",
-                "total_work",
-            ]
+            columns=pd.Index(
+                [
+                    "bucket_start_s",
+                    "window_s",
+                    "required_units",
+                    "overflow_units",
+                    "overflow_fraction",
+                    "input_tokens",
+                    "cached_input_tokens",
+                    "output_tokens",
+                    "thinking_tokens",
+                    "total_work",
+                ]
+            )
         )
 
     max_time = float(arrivals.max())
@@ -256,7 +260,8 @@ def summarize_slack(slack_table: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     rows = []
     grouped = slack_table.groupby("window_s", sort=True)
-    for window_s, group in grouped:
+    for _, group in grouped:
+        window_s = float(group["window_s"].iloc[0])
         reserved = float(group["reserved_units"].iloc[0])
         required = group["required_units"]
         spare = group["spare_units"]
@@ -314,7 +319,9 @@ def simulate_capacity(
 
     frame = trace.frame.copy()
     baseline_model = options.baseline_latency_model or fit_baseline_latency_model(trace)
-    work = adjusted_work(frame, profile, output_token_source=options.output_token_source)
+    work = adjusted_work(
+        frame, profile, output_token_source=options.output_token_source
+    )
     arrivals = frame["arrival_s"].to_numpy(dtype=float)
     baseline = baseline_model.predict(frame)
     service_rate = float(units) * float(profile.throughput_per_unit)

@@ -143,7 +143,9 @@ def _check_latency_slo(
     """Check if a capacity level meets the latency SLO."""
     simulation = simulate_capacity(trace, profile, units=units, options=options)
     metric_col = "total_latency_s" if str(slo.metric) == "e2e" else "queue_delay_s"
-    quantile_value = float(np.quantile(simulation.request_level[metric_col], slo.percentile))
+    quantile_value = float(
+        np.quantile(simulation.request_level[metric_col], slo.percentile)
+    )
     return quantile_value <= slo.threshold_s
 
 
@@ -167,7 +169,9 @@ def _find_full_provision_units(
         return profile.min_units
 
     max_required = float(buckets["required_units"].max())
-    return round_up_to_increment(max_required, profile.min_units, profile.purchase_increment)
+    return round_up_to_increment(
+        max_required, profile.min_units, profile.purchase_increment
+    )
 
 
 def plan_hybrid_capacity(
@@ -217,6 +221,11 @@ def plan_hybrid_capacity(
     full_provision_cost = full_provision_units * pricing.provisioned.cost_per_unit_hour
 
     if target.strategy == "percentile_split":
+        provision_percentile = target.provision_percentile
+        if provision_percentile is None:
+            raise ValueError(
+                "provision_percentile is required when strategy='percentile_split'"
+            )
         buckets = bucket_with_tokens(
             trace.frame,
             profile,
@@ -228,7 +237,7 @@ def plan_hybrid_capacity(
             percentile_units = profile.min_units
         else:
             percentile_units = float(
-                buckets["required_units"].quantile(target.provision_percentile)
+                buckets["required_units"].quantile(provision_percentile)
             )
         provisioned_units = round_up_to_increment(
             percentile_units, profile.min_units, profile.purchase_increment
@@ -269,14 +278,20 @@ def plan_hybrid_capacity(
         best_cost = float("inf")
         best_costs: dict[str, float] = {}
 
-        for units in range(0, options.max_units_to_search + 1, profile.purchase_increment):
+        for units in range(
+            0, options.max_units_to_search + 1, profile.purchase_increment
+        ):
             effective_units = max(units, 0)
 
             if (
                 target.latency_slo is not None
                 and effective_units > 0
                 and not _check_latency_slo(
-                    trace, profile, target.latency_slo, units=effective_units, options=options
+                    trace,
+                    profile,
+                    target.latency_slo,
+                    units=effective_units,
+                    options=options,
                 )
             ):
                 continue
@@ -333,7 +348,9 @@ def plan_hybrid_capacity(
     slack_summary = summarize_slack(slack_table)
 
     savings = full_provision_cost - costs["total_cost_hourly"]
-    savings_percent = (savings / full_provision_cost * 100) if full_provision_cost > 0 else 0.0
+    savings_percent = (
+        (savings / full_provision_cost * 100) if full_provision_cost > 0 else 0.0
+    )
 
     assumptions = {
         "strategy": target.strategy,

@@ -1,13 +1,13 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
 
 [project]
 name = "slosizer"
-version = "0.3.0"
 description = "Capacity planning for reserved LLM throughput: latency, headroom, and synthetic workload simulation."
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 authors = [
   {name = "Gaurav Sood", email = "contact@gsood.com"}
@@ -16,7 +16,6 @@ keywords = ["llm", "capacity-planning", "slo", "vertex-ai", "azure-openai", "thr
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering",
@@ -27,6 +26,7 @@ dependencies = [
   "pandas",
   "matplotlib",
 ]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/gojiplus/slosizer"
@@ -41,12 +41,15 @@ dev = [
   "vulture",
   "pydoclint",
   "pyright",
+  "pandas-stubs>=3.0.3.260530",
 ]
 docs = [
   "sphinx",
   "furo",
   "myst-parser",
   "sphinx-autodoc-typehints",
+  "sphinx-copybutton",
+  "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
 ]
 app = [
   "streamlit>=1.30",
@@ -55,41 +58,38 @@ app = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/slosizer"]
 
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.ruff]
+line-length = 88
 target-version = "py313"
-line-length = 100
-src = ["src", "tests", "examples"]
 
 [tool.ruff.lint]
-select = [
-  "E",
-  "F",
-  "I",
-  "B",
-  "UP",
-  "SIM",
-  "D",
-]
-ignore = ["E501", "D105"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D"]
+external = ["DOC"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF"]
+# S106/S107: the `output_token_source` kwarg (LLM tokens) trips bandit's
+# hardcoded-password heuristics
+ignore = ["D203", "D213", "D105", "E501", "S106", "S107"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.ruff.format]
-docstring-code-format = true
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D"]
+"docs/**" = ["D"]
+"examples/**" = ["T201", "D100"]
 
 [tool.pydoclint]
 style = "google"
 arg-type-hints-in-docstring = false
 check-return-types = false
-check-yield-types = false
+check-class-attributes = false
+allow-init-docstring = true
+exclude = '\.venv|tests|docs'
 
 [tool.deptry]
 known_first_party = ["slosizer"]
@@ -104,12 +104,8 @@ sort_by_size = true
 
 [tool.pyright]
 include = ["src"]
-pythonVersion = "3.13"
-typeCheckingMode = "basic"
-reportAttributeAccessIssue = false
-reportArgumentType = false
-reportOperatorIssue = false
-reportReturnType = false
-reportCallIssue = false
-reportGeneralTypeIssues = false
+typeCheckingMode = "standard"
 
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"

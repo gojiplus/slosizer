@@ -248,12 +248,12 @@ The 3-column minimum works, but you get more accurate capacity estimates with:
 | `class_name` | Separate capacity needs by request type |
 | `latency_s` | Calibrate model latency estimates |
 
-See [`docs/data-requirements.md`](docs/data-requirements.md) for full details.
+See [`docs/data-requirements.md`](https://gojiplus.github.io/slosizer/data-requirements.html) for full details.
 
 Example input files:
 
-- [`examples/input/synthetic_request_trace_baseline.csv`](examples/input/synthetic_request_trace_baseline.csv)
-- [`examples/input/synthetic_request_trace_optimized.csv`](examples/input/synthetic_request_trace_optimized.csv)
+- [`examples/input/synthetic_request_trace_baseline.csv`](https://github.com/gojiplus/slosizer/blob/main/examples/input/synthetic_request_trace_baseline.csv)
+- [`examples/input/synthetic_request_trace_optimized.csv`](https://github.com/gojiplus/slosizer/blob/main/examples/input/synthetic_request_trace_optimized.csv)
 
 ## Built-in provider support
 
@@ -270,7 +270,7 @@ The package ships a small built-in registry for a handful of Vertex models, incl
 ### Azure PTU
 Azure PTU support is user-calibrated on purpose. The package gives you the same planning engine, but you provide the model-specific PTU profile from your calculator + benchmark loop.
 
-See [`docs/provider-adapters.md`](docs/provider-adapters.md).
+See [`docs/provider-adapters.md`](https://gojiplus.github.io/slosizer/provider-adapters.html).
 
 ## Synthetic demo: what it shows
 
@@ -309,27 +309,27 @@ These numbers are synthetic. They are there to show the mechanics, not to cospla
 
 **Latency vs provisioned capacity**
 
-![Latency vs capacity](docs/assets/latency_vs_capacity.png)
+![Latency vs capacity](https://raw.githubusercontent.com/gojiplus/slosizer/main/docs/assets/latency_vs_capacity.png)
 
 **Distribution of required reserved units**
 
-![Required units distribution](docs/assets/required_units_distribution.png)
+![Required units distribution](https://raw.githubusercontent.com/gojiplus/slosizer/main/docs/assets/required_units_distribution.png)
 
 **Optimization benefit**
 
-![Optimization benefit](docs/assets/scenario_benefit.png)
+![Optimization benefit](https://raw.githubusercontent.com/gojiplus/slosizer/main/docs/assets/scenario_benefit.png)
 
 **Slack trade-off**
 
-![Slack trade-off](docs/assets/percentile_tradeoff.png)
+![Slack trade-off](https://raw.githubusercontent.com/gojiplus/slosizer/main/docs/assets/percentile_tradeoff.png)
 
 ## Repo map
 
-- [`docs/formalization.md`](docs/formalization.md): generic throughput/latency model
-- [`docs/data-requirements.md`](docs/data-requirements.md): what columns you need and why
-- [`docs/provider-adapters.md`](docs/provider-adapters.md): how GSU/PTU adaptation works
-- [`docs/examples.md`](docs/examples.md): the synthetic walkthrough
-- [`examples/quickstart.py`](examples/quickstart.py): reproducible demo script
+- [`docs/formalization.md`](https://gojiplus.github.io/slosizer/formalization.html): generic throughput/latency model
+- [`docs/data-requirements.md`](https://gojiplus.github.io/slosizer/data-requirements.html): what columns you need and why
+- [`docs/provider-adapters.md`](https://gojiplus.github.io/slosizer/provider-adapters.html): how GSU/PTU adaptation works
+- [`docs/examples.md`](https://gojiplus.github.io/slosizer/examples.html): the synthetic walkthrough
+- [`examples/quickstart.py`](https://github.com/gojiplus/slosizer/blob/main/examples/quickstart.py): reproducible demo script
 
 ## Caveats
 

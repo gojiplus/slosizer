@@ -4,7 +4,7 @@ This module provides functions to convert raw DataFrames into normalized
 RequestTrace objects with canonical column names.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
@@ -24,7 +24,7 @@ def _normalize_arrival_seconds(series: pd.Series) -> pd.Series:
     if is_datetime64_any_dtype(series):
         return (series - series.min()).dt.total_seconds().astype(float)
     if is_numeric_dtype(series):
-        values = pd.to_numeric(series, errors="raise").astype(float)
+        values = cast(pd.Series, pd.to_numeric(series, errors="raise")).astype(float)
         return values - float(values.min())
 
     parsed = pd.to_datetime(series, errors="raise")
@@ -52,9 +52,11 @@ def _coerce_nonnegative_numeric(
     """
     if source_col is None or source_col not in data.columns:
         return pd.Series(default, index=data.index, dtype=float)
-    values = pd.to_numeric(data[source_col], errors="coerce")
+    values = cast(pd.Series, pd.to_numeric(data[source_col], errors="coerce"))
     if values.isna().any():
-        raise ValueError(f"Column {source_col!r} contains missing or non-numeric values.")
+        raise ValueError(
+            f"Column {source_col!r} contains missing or non-numeric values."
+        )
     if (values < 0).any():
         raise ValueError(f"Column {source_col!r} contains negative values.")
     return values.astype(float)
@@ -142,7 +144,9 @@ def from_dataframe(
     )
 
     if schema.latency_col and schema.latency_col in raw.columns:
-        frame["observed_latency_s"] = _coerce_nonnegative_numeric(raw, schema.latency_col)
+        frame["observed_latency_s"] = _coerce_nonnegative_numeric(
+            raw, schema.latency_col
+        )
     else:
         frame["observed_latency_s"] = pd.Series(float("nan"), index=frame.index)
 
@@ -157,14 +161,16 @@ def from_dataframe(
         "observed_latency_s",
     ]
     frame = (
-        frame[canonical_columns].sort_values("arrival_s", kind="mergesort").reset_index(drop=True)
+        frame[canonical_columns]
+        .sort_values(by="arrival_s", kind="mergesort")
+        .reset_index(drop=True)
     )
 
     if validate:
         invalid_cache = frame["cached_input_tokens"] > frame["input_tokens"]
         if invalid_cache.any():
             raise ValueError("cached_input_tokens cannot exceed input_tokens.")
-        if frame["arrival_s"].isna().any():
+        if bool(frame["arrival_s"].isna().any()):
             raise ValueError("arrival_s contains missing values after normalization.")
 
     return RequestTrace(

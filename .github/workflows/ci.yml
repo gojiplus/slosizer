@@ -4,44 +4,19 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"  # weekly: surface ecosystem drift on quiet repos
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.13"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --all-groups
-
-      - name: Run ruff linter
-        run: uv run ruff check src tests
-
-      - name: Run ruff formatter check
-        run: uv run ruff format --check src tests
-
-      - name: Run pydoclint
-        run: uv run pydoclint src
-
-      - name: Run deptry
-        run: uv run deptry src
-
-      - name: Run tests
-        run: uv run pytest tests -v
-
-      - name: Run vulture
-        run: uv run vulture src tests
-
-      - name: Run pyright
-        run: uv run pyright src
+  ci:
+    uses: gojiplus/py-canon/.github/workflows/reusable-ci.yml@v1
+    with:
+      wheel-import: slosizer
+      coverage-floor: 0

@@ -102,7 +102,10 @@ class TestPlanCapacity:
             options=PlanOptions(headroom_factor=0.2),
         )
 
-        assert result_with_headroom.recommended_units >= result_no_headroom.recommended_units
+        assert (
+            result_with_headroom.recommended_units
+            >= result_no_headroom.recommended_units
+        )
 
     def test_max_output_tokens_source(self, simple_profile, simple_trace):
         target = ThroughputTarget(percentile=0.99)
@@ -150,7 +153,9 @@ class TestPlanCapacity:
             plan_capacity(simple_trace, profile, target)
 
     def test_invalid_target_type_raises(self, simple_profile, simple_trace):
-        with pytest.raises(TypeError, match="must be a ThroughputTarget or LatencyTarget"):
+        with pytest.raises(
+            TypeError, match="must be a ThroughputTarget or LatencyTarget"
+        ):
             plan_capacity(simple_trace, simple_profile, "invalid")
 
     def test_infeasible_latency_raises(self, simple_profile, simple_trace):

@@ -51,8 +51,12 @@ def plot_latency_vs_units(
         )
     plot_df = pd.DataFrame(rows)
     plt.figure(figsize=(8.5, 5.2))
-    plt.plot(plot_df["units"], plot_df["p95_latency_s"], marker="o", label="p95 latency")
-    plt.plot(plot_df["units"], plot_df["p99_latency_s"], marker="s", label="p99 latency")
+    plt.plot(
+        plot_df["units"], plot_df["p95_latency_s"], marker="o", label="p95 latency"
+    )
+    plt.plot(
+        plot_df["units"], plot_df["p99_latency_s"], marker="s", label="p99 latency"
+    )
     if target is not None:
         plt.axhline(target.slo.threshold_s, linestyle="--", label="target latency")
     plt.xlabel(f"Provisioned {profile.unit_name}s")
@@ -93,7 +97,9 @@ def plot_required_units_distribution(
     plt.figure(figsize=(8.5, 5.2))
     for window_s in windows_s:
         subset = required[required["window_s"] == float(window_s)]
-        plt.hist(subset["required_units"], bins=30, alpha=0.6, label=f"{window_s:g}s window")
+        plt.hist(
+            subset["required_units"], bins=30, alpha=0.6, label=f"{window_s:g}s window"
+        )
     plt.xlabel(f"Required {profile.unit_name}s")
     plt.ylabel("Bucket count")
     plt.title("Distribution of required reserved capacity")
@@ -102,7 +108,9 @@ def plot_required_units_distribution(
     plt.close()
 
 
-def plot_capacity_tradeoff(comparison: pd.DataFrame, *, path: str | Path | None = None) -> None:
+def plot_capacity_tradeoff(
+    comparison: pd.DataFrame, *, path: str | Path | None = None
+) -> None:
     """Plot recommended capacity across scenarios and targets.
 
     Args:
@@ -120,7 +128,9 @@ def plot_capacity_tradeoff(comparison: pd.DataFrame, *, path: str | Path | None 
     plt.close()
 
 
-def plot_slack_tradeoff(comparison: pd.DataFrame, *, path: str | Path | None = None) -> None:
+def plot_slack_tradeoff(
+    comparison: pd.DataFrame, *, path: str | Path | None = None
+) -> None:
     """Plot spare capacity fraction across scenarios and targets.
 
     Args:
@@ -131,7 +141,9 @@ def plot_slack_tradeoff(comparison: pd.DataFrame, *, path: str | Path | None = N
         ValueError: If comparison is missing the avg_spare_fraction_1s column.
     """
     if "avg_spare_fraction_1s" not in comparison.columns:
-        raise ValueError("comparison DataFrame must contain 'avg_spare_fraction_1s' column")
+        raise ValueError(
+            "comparison DataFrame must contain 'avg_spare_fraction_1s' column"
+        )
     labels = comparison["scenario"] + "\n" + comparison["target"]
     plt.figure(figsize=(10, 5.5))
     plt.bar(labels, comparison["avg_spare_fraction_1s"])

@@ -203,7 +203,12 @@ class TestFitBaselineLatencyModel:
         input_tokens = np.random.randint(100, 1000, n)
         output_tokens = np.random.randint(50, 200, n)
         # Synthetic latency = 0.1 + 0.001*input + 0.01*output + noise
-        latency = 0.1 + 0.001 * input_tokens + 0.01 * output_tokens + np.random.normal(0, 0.05, n)
+        latency = (
+            0.1
+            + 0.001 * input_tokens
+            + 0.01 * output_tokens
+            + np.random.normal(0, 0.05, n)
+        )
 
         df = pd.DataFrame(
             {

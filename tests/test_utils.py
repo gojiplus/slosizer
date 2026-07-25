@@ -167,8 +167,12 @@ class TestAdjustedWork:
                 "max_output_tokens": [500],
             }
         )
-        result_observed = adjusted_work(frame, simple_profile, output_token_source="observed")
-        result_max = adjusted_work(frame, simple_profile, output_token_source="max_output_tokens")
+        result_observed = adjusted_work(
+            frame, simple_profile, output_token_source="observed"
+        )
+        result_max = adjusted_work(
+            frame, simple_profile, output_token_source="max_output_tokens"
+        )
         # observed: 1000*1 + 100*4 = 1400
         # max: 1000*1 + 500*4 = 3000
         assert result_observed[0] == 1400.0

@@ -23,7 +23,11 @@ def _base_trace(seed: int = 42, horizon_s: int = 4 * 3600) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     secs = np.arange(horizon_s)
 
-    lam = 1.5 + 0.5 * np.sin(2 * np.pi * secs / 3600 - 0.8) + 0.3 * np.sin(2 * np.pi * secs / 900)
+    lam = (
+        1.5
+        + 0.5 * np.sin(2 * np.pi * secs / 3600 - 0.8)
+        + 0.3 * np.sin(2 * np.pi * secs / 900)
+    )
     lam = np.clip(lam, 0.2, None)
     for _ in range(14):
         start = rng.integers(0, horizon_s - 200)
@@ -105,36 +109,52 @@ def optimize_trace(trace: RequestTrace) -> RequestTrace:
     frame = trace.frame.copy()
 
     extra_cache = np.select(
-        [frame.class_name == "chat", frame.class_name == "rag", frame.class_name == "reasoning"],
+        [
+            frame.class_name == "chat",
+            frame.class_name == "rag",
+            frame.class_name == "reasoning",
+        ],
         [0.12, 0.18, 0.06],
         default=0.0,
     )
     reduce_input = np.select(
-        [frame.class_name == "chat", frame.class_name == "rag", frame.class_name == "reasoning"],
+        [
+            frame.class_name == "chat",
+            frame.class_name == "rag",
+            frame.class_name == "reasoning",
+        ],
         [0.12, 0.22, 0.10],
         default=0.0,
     )
     reduce_output = np.select(
-        [frame.class_name == "chat", frame.class_name == "rag", frame.class_name == "reasoning"],
+        [
+            frame.class_name == "chat",
+            frame.class_name == "rag",
+            frame.class_name == "reasoning",
+        ],
         [0.20, 0.18, 0.12],
         default=0.0,
     )
     reduce_thinking = np.select([frame.class_name == "reasoning"], [0.35], default=0.0)
 
-    frame["input_tokens"] = np.round(frame["input_tokens"] * (1 - reduce_input)).astype(int)
+    frame["input_tokens"] = np.round(frame["input_tokens"] * (1 - reduce_input)).astype(
+        int
+    )
     original_cache = np.divide(
         trace.frame["cached_input_tokens"],
         np.maximum(trace.frame["input_tokens"], 1),
     )
     new_cache = np.clip(original_cache + extra_cache, 0, 0.8)
-    frame["cached_input_tokens"] = np.round(frame["input_tokens"] * new_cache).astype(int)
+    frame["cached_input_tokens"] = np.round(frame["input_tokens"] * new_cache).astype(
+        int
+    )
     frame["output_tokens"] = np.minimum(
         np.round(frame["output_tokens"] * (1 - reduce_output)).astype(int),
         np.round(frame["max_output_tokens"] * 0.85).astype(int),
     )
-    frame["thinking_tokens"] = np.round(frame["thinking_tokens"] * (1 - reduce_thinking)).astype(
-        int
-    )
+    frame["thinking_tokens"] = np.round(
+        frame["thinking_tokens"] * (1 - reduce_thinking)
+    ).astype(int)
     frame["max_output_tokens"] = np.round(frame["max_output_tokens"] * 0.85).astype(int)
 
     raw = frame.rename(columns={"arrival_s": "ts"})
@@ -152,7 +172,10 @@ def optimize_trace(trace: RequestTrace) -> RequestTrace:
         provider=trace.provider,
         model=trace.model,
         region=trace.region,
-        metadata={**trace.metadata, "optimized_from": trace.metadata.get("scenario", "baseline")},
+        metadata={
+            **trace.metadata,
+            "optimized_from": trace.metadata.get("scenario", "baseline"),
+        },
     )
 
 

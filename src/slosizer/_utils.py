@@ -29,7 +29,9 @@ def round_up_to_increment(units: float, minimum: int, increment: int) -> int:
     return int(math.ceil(base / increment) * increment)
 
 
-def selected_output_tokens(frame: pd.DataFrame, source: str | OutputTokenSource) -> np.ndarray:
+def selected_output_tokens(
+    frame: pd.DataFrame, source: str | OutputTokenSource
+) -> np.ndarray:
     """Select output token values based on source preference.
 
     Args:
@@ -78,11 +80,17 @@ def adjusted_work(
         if profile.long_input_input_weight is not None:
             input_weight = np.where(mask, profile.long_input_input_weight, input_weight)
         if profile.long_input_cached_input_weight is not None:
-            cached_weight = np.where(mask, profile.long_input_cached_input_weight, cached_weight)
+            cached_weight = np.where(
+                mask, profile.long_input_cached_input_weight, cached_weight
+            )
         if profile.long_input_output_weight is not None:
-            output_weight = np.where(mask, profile.long_input_output_weight, output_weight)
+            output_weight = np.where(
+                mask, profile.long_input_output_weight, output_weight
+            )
         if profile.long_input_thinking_weight is not None:
-            thinking_weight = np.where(mask, profile.long_input_thinking_weight, thinking_weight)
+            thinking_weight = np.where(
+                mask, profile.long_input_thinking_weight, thinking_weight
+            )
 
     return (
         (inputs - cached) * input_weight
