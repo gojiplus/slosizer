@@ -9,11 +9,11 @@ uv run python examples/quickstart.py
 
 It generates these files:
 
-- [`examples/output/comparison.csv`](../examples/output/comparison.csv)
-- [`examples/output/latency_vs_capacity.png`](../examples/output/latency_vs_capacity.png)
-- [`examples/output/required_units_distribution.png`](../examples/output/required_units_distribution.png)
-- [`examples/output/scenario_benefit.png`](../examples/output/scenario_benefit.png)
-- [`examples/output/percentile_tradeoff.png`](../examples/output/percentile_tradeoff.png)
+- `examples/output/comparison.csv`
+- `examples/output/latency_vs_capacity.png`
+- `examples/output/required_units_distribution.png`
+- `examples/output/scenario_benefit.png`
+- `examples/output/percentile_tradeoff.png`
 
 ## What the fake workload is doing
 

@@ -20,7 +20,7 @@ The package gets more useful when you also provide these:
 
 ## Minimal schema
 
-```csv
+```text
 timestamp,input_tokens,output_tokens
 0.0,800,120
 0.2,1200,180
@@ -29,7 +29,7 @@ timestamp,input_tokens,output_tokens
 
 ## Recommended schema
 
-```csv
+```text
 timestamp,class_name,input_tokens,cached_input_tokens,output_tokens,thinking_tokens,max_output_tokens,latency_s
 0.0,chat,800,120,120,0,512,0.74
 0.2,rag,1200,350,180,0,768,1.10
