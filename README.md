@@ -57,7 +57,7 @@ profile = slz.vertex_profile("gemini-2.0-flash-001")
 result = slz.plan_capacity(
     trace,
     profile,
-    slz.LatencyTarget(slz.LatencySLO(threshold_s=1.5, percentile=0.99, metric="e2e"))
+    slz.LatencyTarget(slz.LatencySLO(threshold_s=1.5, percentile=0.99, metric="e2e")),
 )
 ```
 
@@ -202,18 +202,22 @@ profile = slz.vertex_profile("gemini-2.5-flash")
 pricing = slz.HybridPricingModel(
     provisioned=slz.ProvisionedPricing(cost_per_unit_hour=2.50),
     paygo=slz.PaygoPricing(
-        input_cost_per_million=0.30 * 1.8,   # priority tier
+        input_cost_per_million=0.30 * 1.8,  # priority tier
         output_cost_per_million=2.50 * 1.8,
     ),
 )
 
 result = slz.plan_hybrid_capacity(
-    trace, profile, pricing,
+    trace,
+    profile,
+    pricing,
     slz.HybridTarget(strategy="cost_optimal"),
 )
 
 print(f"Provision {result.provisioned_units} GSUs + paygo overflow")
-print(f"Saves ${result.savings_vs_full_provision:.2f}/hr ({result.savings_percent:.0f}%)")
+print(
+    f"Saves ${result.savings_vs_full_provision:.2f}/hr ({result.savings_percent:.0f}%)"
+)
 ```
 
 Two strategies:
