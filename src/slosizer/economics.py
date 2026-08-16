@@ -120,7 +120,10 @@ def plan_profit_capacity(
             trace, profile, units=units, options=simulation_options
         )
         latency = simulation.request_level[metric_col].to_numpy(dtype=float)
-        bad_requests = int((latency > target.latency_slo.threshold_s).sum())
+        successful_requests = np.isfinite(latency) & (
+            latency <= target.latency_slo.threshold_s
+        )
+        bad_requests = int((~successful_requests).sum())
         slo_attainment = 1.0 - bad_requests / len(latency)
         meets_slo = slo_attainment >= target.latency_slo.percentile
         provisioned_cost_hourly = units * pricing.provisioned.cost_per_unit_hour

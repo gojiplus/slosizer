@@ -105,6 +105,30 @@ def test_priced_slo_can_rationally_accept_misses(economic_trace, economic_profil
     assert result.slo_violation_cost_hourly > 0
 
 
+def test_non_finite_simulated_latency_is_an_slo_miss(economic_trace, economic_profile):
+    non_finite_model = BaselineLatencyModel(
+        intercept_s=float("nan"),
+        input_token_s=0.0,
+        cached_input_token_s=0.0,
+        output_token_s=0.0,
+        thinking_token_s=0.0,
+    )
+
+    with pytest.raises(
+        RuntimeError, match="No capacity choice satisfies the hard latency SLO"
+    ):
+        plan_profit_capacity(
+            economic_trace,
+            economic_profile,
+            pricing(),
+            ProfitTarget(latency_slo=LatencySLO(threshold_s=0.1, percentile=0.95)),
+            options=PlanOptions(
+                max_units_to_search=5,
+                baseline_latency_model=non_finite_model,
+            ),
+        )
+
+
 def test_scalar_value_can_replace_trace_value(economic_trace, economic_profile):
     trace = economic_trace
     trace.frame["business_value"] = float("nan")
