@@ -5,11 +5,15 @@ based on throughput or latency targets.
 """
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 
-import numpy as np
 import pandas as pd
 
-from slosizer._utils import round_up_to_increment
+from slosizer._utils import (
+    capacity_candidates,
+    empirical_quantile,
+    round_up_to_increment,
+)
 from slosizer.schema import (
     CapacityProfile,
     LatencyTarget,
@@ -20,6 +24,7 @@ from slosizer.schema import (
 )
 from slosizer.simulation import (
     bucket_required_units,
+    fit_baseline_latency_model,
     simulate_capacity,
     summarize_slack,
 )
@@ -29,7 +34,7 @@ def _candidate_units(
     min_units: int, purchase_increment: int, max_units: int
 ) -> list[int]:
     """Generate candidate unit counts for capacity search."""
-    return list(range(min_units, max_units + 1, purchase_increment))
+    return capacity_candidates(min_units, purchase_increment, max_units)
 
 
 def _flatten_slack_summary(slack_summary: pd.DataFrame) -> dict[str, float]:
@@ -153,6 +158,10 @@ def _plan_latency(
     options: PlanOptions,
 ) -> PlanResult:
     """Plan capacity for a latency target."""
+    if options.baseline_latency_model is None:
+        options = replace(
+            options, baseline_latency_model=fit_baseline_latency_model(trace)
+        )
     metric_col = (
         "total_latency_s" if str(target.slo.metric) == "e2e" else "queue_delay_s"
     )
@@ -162,10 +171,9 @@ def _plan_latency(
         profile.min_units, profile.purchase_increment, options.max_units_to_search
     ):
         simulation = simulate_capacity(trace, profile, units=units, options=options)
-        quantile_value = float(
-            np.quantile(simulation.request_level[metric_col], target.slo.percentile)
-        )
-        if quantile_value <= target.slo.threshold_s:
+        latency = simulation.request_level[metric_col].to_numpy(dtype=float)
+        attainment = float((latency <= target.slo.threshold_s).mean())
+        if attainment >= target.slo.percentile:
             recommended_base = units
             break
 
@@ -184,12 +192,13 @@ def _plan_latency(
         profile.purchase_increment,
     )
     simulation = simulate_capacity(trace, profile, units=recommended, options=options)
-    final_quantile = float(
-        np.quantile(simulation.request_level[metric_col], target.slo.percentile)
-    )
+    final_latency = simulation.request_level[metric_col].to_numpy(dtype=float)
+    final_quantile = empirical_quantile(final_latency, target.slo.percentile)
+    final_attainment = float((final_latency <= target.slo.threshold_s).mean())
     latency_row = simulation.latency_summary.iloc[0].to_dict()
     metrics: dict[str, float | str] = {
         "achieved_latency_quantile_s": final_quantile,
+        "slo_attainment": final_attainment,
         "latency_percentile": float(target.slo.percentile),
         "latency_threshold_s": float(target.slo.threshold_s),
         "latency_metric": target.slo.metric,

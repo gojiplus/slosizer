@@ -1,4 +1,4 @@
-# slosizer: Right-size reserved LLM capacity Based on SLO
+# slosizer: Profit-aware reserved LLM capacity planning
 
 [![PyPI Version](https://img.shields.io/pypi/v/slosizer.svg)](https://pypi.python.org/pypi/slosizer)
 [![CI](https://github.com/gojiplus/slosizer/actions/workflows/ci.yml/badge.svg)](https://github.com/gojiplus/slosizer/actions?query=workflow%3Aci)
@@ -6,7 +6,7 @@
 [![Downloads](https://static.pepy.tech/badge/slosizer)](https://pepy.tech/project/slosizer)
 
 
-`slosizer` is a small Python package for sizing reserved LLM capacity against either a **throughput objective** or a **latency SLO**.
+`slosizer` sizes reserved LLM capacity against throughput, latency SLOs, and an explicit economic objective.
 
 It takes request traces, converts them into provider-specific capacity work, simulates queueing under bursty arrivals, and tells you how many reserved units you should buy plus how much slack capacity you are likely to carry.
 
@@ -28,6 +28,7 @@ Reserved-capacity systems like GSU/PTU are fundamentally **throughput constructs
    - **throughput**: control overload probability or required-unit percentile,
    - **latency**: satisfy p95/p99 queue-aware latency targets,
    - **hybrid**: balance provisioned cost against paygo overflow,
+   - **profit**: maximize expected gross value after provisioned and SLO-failure costs,
 4. quantify:
    - spare capacity,
    - overload probability,
@@ -38,7 +39,7 @@ Reserved-capacity systems like GSU/PTU are fundamentally **throughput constructs
 
 Total latency = **model latency** + **queue delay**.
 
-Model latency is how long the LLM takes to process your request with no contention—estimated from token counts and provider throughput rates. Queue delay is waiting time caused by bursty arrivals: when requests arrive faster than capacity can serve them, a backlog forms.
+Model latency is how long the LLM takes to process your request with no contention, estimated from token counts and provider throughput rates. Queue delay is waiting time caused by bursty arrivals: when requests arrive faster than capacity can serve them, a backlog forms.
 
 The package simulates an FCFS queue against your request trace to estimate tail latencies (p95/p99). More reserved capacity = shorter queues = lower tail latency. The goal is finding the minimum capacity that keeps queue delay acceptable.
 
@@ -52,7 +53,7 @@ Use the synthetic generator to explore capacity planning before you have real lo
 import slosizer as slz
 
 trace = slz.make_synthetic_trace(seed=42)
-profile = slz.vertex_profile("gemini-2.0-flash-001")
+profile = slz.vertex_profile("gemini-2.5-flash-lite")
 
 result = slz.plan_capacity(
     trace,
@@ -87,7 +88,7 @@ trace = slz.from_dataframe(
         output_tokens_col="output_tokens",
     ),
     provider="vertex",
-    model="gemini-2.0-flash-001",
+    model="gemini-2.5-flash-lite",
 )
 ```
 
@@ -146,10 +147,10 @@ trace = slz.from_dataframe(
         latency_col="latency_s",
     ),
     provider="vertex",
-    model="gemini-2.0-flash-001",
+    model="gemini-2.5-flash-lite",
 )
 
-profile = slz.vertex_profile("gemini-2.0-flash-001")
+profile = slz.vertex_profile("gemini-2.5-flash-lite")
 
 result = slz.plan_capacity(
     trace,
@@ -173,7 +174,7 @@ print(result.metrics)
 import slosizer as slz
 
 trace = slz.make_synthetic_trace(seed=42)
-profile = slz.vertex_profile("gemini-2.0-flash-001")
+profile = slz.vertex_profile("gemini-2.5-flash-lite")
 
 result = slz.plan_capacity(
     trace,
@@ -189,29 +190,44 @@ print(result.recommended_units)
 print(result.slack_summary)
 ```
 
-### Hybrid capacity planning
+### Cost-optimal hybrid planning
 
-When you don't want to provision for peak load:
+This is the normal operating case. The request trace is the demand forecast. With fixed demand and a hard SLO, minimizing inference cost subject to the SLO maximizes profit. Users do not need to estimate request value or demand elasticity.
 
 ```python
+from datetime import date
+
 import slosizer as slz
 
 trace = slz.make_synthetic_trace(seed=42)
 profile = slz.vertex_profile("gemini-2.5-flash")
-
-pricing = slz.HybridPricingModel(
-    provisioned=slz.ProvisionedPricing(cost_per_unit_hour=2.50),
+pricing = slz.RateCard(
+    provisioned=slz.ProvisionedPricing(cost_per_unit_hour=3.698630137),
     paygo=slz.PaygoPricing(
-        input_cost_per_million=0.30 * 1.8,  # priority tier
-        output_cost_per_million=2.50 * 1.8,
+        input_cost_per_million=0.30,
+        cached_input_cost_per_million=0.03,
+        output_cost_per_million=2.50,
+        thinking_cost_per_million=2.50,
     ),
+    currency="USD",
+    provider="vertex",
+    model="gemini-2.5-flash",
+    verified_on=date(2026, 8, 15),
+    source="https://cloud.google.com/vertex-ai/generative-ai/pricing",
 )
 
 result = slz.plan_hybrid_capacity(
     trace,
     profile,
     pricing,
-    slz.HybridTarget(strategy="cost_optimal"),
+    slz.HybridTarget(
+        strategy="cost_optimal",
+        latency_slo=slz.LatencySLO(
+            threshold_s=1.5,
+            percentile=0.99,
+        ),
+    ),
+    options=slz.PlanOptions(baseline_latency_model=slz.BaselineLatencyModel()),
 )
 
 print(f"Provision {result.provisioned_units} GSUs + paygo overflow")
@@ -220,9 +236,47 @@ print(
 )
 ```
 
-Two strategies:
-- **cost_optimal**: finds the cheapest blend of provisioned + paygo
-- **percentile_split**: provisions at a given percentile (e.g., p50), rest goes to paygo
+That public list rate was checked on 2026-08-15. Production analysis should use the effective rate on your invoice or contract and record its source and validity dates.
+
+`cost_optimal` finds the cheapest provisioned and paygo blend. `percentile_split` provisions at a chosen workload percentile and sends the rest to paygo.
+
+### Advanced economic planning
+
+Use `plan_profit_capacity()` when you need an absolute profit estimate or want to price SLO misses instead of treating the SLO as a hard constraint. This requires expected gross value per request and, for a priced SLO, a defensible cost per miss.
+
+```python
+import slosizer as slz
+
+trace = slz.make_synthetic_trace(seed=42)
+profile = slz.vertex_profile("gemini-2.5-flash")
+pricing = slz.RateCard(
+    provisioned=slz.ProvisionedPricing(cost_per_unit_hour=3.698630137),
+    provider="vertex",
+    model="gemini-2.5-flash",
+)
+
+result = slz.plan_profit_capacity(
+    trace,
+    profile,
+    pricing,
+    slz.ProfitTarget(
+        latency_slo=slz.LatencySLO(threshold_s=1.5, percentile=0.99),
+        slo_policy="priced",
+        value_per_request=0.05,
+        slo_violation_cost_per_request=0.01,
+    ),
+    options=slz.PlanOptions(baseline_latency_model=slz.BaselineLatencyModel()),
+)
+
+print(result.expected_profit_hourly)
+print(result.candidate_plans)
+```
+
+`business_value` is gross contribution before inference and SLO costs. It changes the value assigned to a request, not demand. The package does not estimate demand effects. If a model is expected to receive different traffic, supply a different forecast trace in an optional `ProfitScenario`. Most users should not need this API.
+
+With one trace and a hard SLO, business value changes reported profit but not recommended capacity. Use the hybrid planner for that case.
+
+`headroom_factor` is rejected for `cost_optimal` because adding capacity after the search would no longer be cost optimal. Model uncertainty with workload scenarios instead.
 
 ### Azure PTU example
 
@@ -232,11 +286,15 @@ Azure support is calibration-first: you seed a profile from the Azure calculator
 import slosizer as slz
 
 profile = slz.azure_profile(
-    "gpt-4.1",
-    throughput_per_unit=12000.0,
+    "gpt-5.2",
+    throughput_per_unit=3400 / 60,
+    purchase_increment=5,
+    min_units=15,
     input_weight=1.0,
-    output_weight=4.0,
-    thinking_weight=4.0,
+    cached_input_weight=0.0,
+    output_weight=8.0,
+    thinking_weight=8.0,
+    deployment_type="data_zone_provisioned",
 )
 ```
 
@@ -251,6 +309,9 @@ The 3-column minimum works, but you get more accurate capacity estimates with:
 | `max_output_tokens` | Helps estimate worst-case latency |
 | `class_name` | Separate capacity needs by request type |
 | `latency_s` | Calibrate model latency estimates |
+| `request_model` / `response_model` | Distinguish the requested alias from the model that actually served |
+| `service_tier` | Separate provisioned, standard, priority, batch, and other routes |
+| `business_value` | Optional absolute-profit or priced-SLO analysis |
 
 See [`docs/data-requirements.md`](https://gojiplus.github.io/slosizer/data-requirements.html) for full details.
 
@@ -262,14 +323,19 @@ Example input files:
 ## Built-in provider support
 
 ### Vertex GSU
-The package ships a small built-in registry for a handful of Vertex models, including:
+The package ships a reviewed, versioned TOML catalog for current text-capable Vertex Provisioned Throughput models, including:
 
-- `gemini-2.0-flash-001`
-- `gemini-2.0-flash-lite-001`
 - `gemini-2.5-flash`
 - `gemini-2.5-flash-lite`
 - `gemini-2.5-pro`
-- `gemini-3.1-flash-lite-preview`
+- `gemini-3.1-flash-lite`
+- `gemini-3.1-pro-preview`
+- `gemini-3.5-flash`
+- `gemini-3.5-flash-lite`
+- `gemini-3.6-flash`
+- `gemini-3.7-flash`
+
+Provider facts live in `src/slosizer/data/vertex.toml`, not in optimizer code. Add a new model by updating a catalog or load your own with `load_capacity_profiles()`.
 
 ### Azure PTU
 Azure PTU support is user-calibrated on purpose. The package gives you the same planning engine, but you provide the model-specific PTU profile from your calculator + benchmark loop.
@@ -300,12 +366,12 @@ That lets you inspect two things immediately:
 
 | scenario | objective | target | recommended units | avg spare fraction (1s) | overload probability (1s) | achieved latency quantile |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| baseline | latency | p95 <= 1.5s | 5 | 0.718 | 0.030 | 1.315s |
-| baseline | latency | p99 <= 1.5s | 7 | 0.794 | 0.006 | 1.428s |
-| baseline | throughput | p99 units, overload <= 1% | 7 | 0.794 | 0.006 | - |
-| optimized | latency | p95 <= 1.5s | 4 | 0.713 | 0.032 | 1.157s |
-| optimized | latency | p99 <= 1.5s | 5 | 0.766 | 0.012 | 1.278s |
-| optimized | throughput | p99 units, overload <= 1% | 6 | 0.804 | 0.005 | - |
+| baseline | latency | p95 <= 1.5s | 2 | 0.718 | 0.031 | 1.320s |
+| baseline | latency | p99 <= 1.5s | 3 | 0.807 | 0.004 | 1.413s |
+| baseline | throughput | p99 units, overload <= 1% | 3 | 0.807 | 0.004 | - |
+| optimized | latency | p95 <= 1.5s | 2 | 0.779 | 0.009 | 0.954s |
+| optimized | latency | p99 <= 1.5s | 2 | 0.779 | 0.009 | 1.251s |
+| optimized | throughput | p99 units, overload <= 1% | 2 | 0.779 | 0.009 | - |
 
 These numbers are synthetic. They are there to show the mechanics, not to cosplay as your production traffic.
 
@@ -330,6 +396,7 @@ These numbers are synthetic. They are there to show the mechanics, not to cospla
 ## Repo map
 
 - [`docs/formalization.md`](https://gojiplus.github.io/slosizer/formalization.html): generic throughput/latency model
+- [`docs/economics-and-data.md`](https://gojiplus.github.io/slosizer/economics-and-data.html): profit objective, SLO policy, and storage boundaries
 - [`docs/data-requirements.md`](https://gojiplus.github.io/slosizer/data-requirements.html): what columns you need and why
 - [`docs/provider-adapters.md`](https://gojiplus.github.io/slosizer/provider-adapters.html): how GSU/PTU adaptation works
 - [`docs/examples.md`](https://gojiplus.github.io/slosizer/examples.html): the synthetic walkthrough

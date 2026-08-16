@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 
 from slosizer import (
-    HybridPricingModel,
     HybridTarget,
     LatencyMetric,
     LatencySLO,
@@ -15,6 +14,7 @@ from slosizer import (
     PaygoPricing,
     PlanOptions,
     ProvisionedPricing,
+    RateCard,
     RequestSchema,
     ThroughputTarget,
     from_dataframe,
@@ -215,7 +215,7 @@ def main() -> None:
                 "Provisioned cost ($/unit/hour)",
                 min_value=0.0,
                 max_value=100.0,
-                value=2.50,
+                value=3.70,
                 step=0.01,
                 format="%.2f",
             )
@@ -227,6 +227,14 @@ def main() -> None:
                 step=0.01,
                 format="%.2f",
             )
+            paygo_cached_input_cost = st.number_input(
+                "PayGo cached input ($/M tokens)",
+                min_value=0.0,
+                max_value=100.0,
+                value=0.03,
+                step=0.01,
+                format="%.2f",
+            )
             paygo_output_cost = st.number_input(
                 "PayGo output ($/M tokens)",
                 min_value=0.0,
@@ -235,13 +243,13 @@ def main() -> None:
                 step=0.01,
                 format="%.2f",
             )
-            priority_multiplier = st.number_input(
-                "Priority tier multiplier",
-                min_value=1.0,
-                max_value=5.0,
-                value=1.8,
-                step=0.1,
-                format="%.1f",
+            paygo_thinking_cost = st.number_input(
+                "PayGo thinking ($/M tokens)",
+                min_value=0.0,
+                max_value=100.0,
+                value=2.50,
+                step=0.01,
+                format="%.2f",
             )
 
         st.divider()
@@ -270,12 +278,16 @@ def main() -> None:
                     provision_percentile=hybrid_percentile,
                     latency_slo=hybrid_slo,
                 )
-                pricing = HybridPricingModel(
+                pricing = RateCard(
                     provisioned=ProvisionedPricing(cost_per_unit_hour=provisioned_cost),
                     paygo=PaygoPricing(
-                        input_cost_per_million=paygo_input_cost * priority_multiplier,
-                        output_cost_per_million=paygo_output_cost * priority_multiplier,
+                        input_cost_per_million=paygo_input_cost,
+                        cached_input_cost_per_million=paygo_cached_input_cost,
+                        output_cost_per_million=paygo_output_cost,
+                        thinking_cost_per_million=paygo_thinking_cost,
                     ),
+                    provider="vertex",
+                    model=selected_profile,
                 )
 
                 with st.spinner("Planning hybrid capacity..."):
@@ -326,10 +338,17 @@ def main() -> None:
 
                     st.subheader("Overflow Tokens")
                     overflow_data = {
-                        "Token Type": ["Input", "Output"],
+                        "Token Type": [
+                            "Input",
+                            "Cached input",
+                            "Output",
+                            "Thinking",
+                        ],
                         "Tokens/hour": [
                             hybrid_result.overflow_input_tokens_hourly,
+                            hybrid_result.overflow_cached_input_tokens_hourly,
                             hybrid_result.overflow_output_tokens_hourly,
+                            hybrid_result.overflow_thinking_tokens_hourly,
                         ],
                     }
                     st.dataframe(pd.DataFrame(overflow_data), use_container_width=True)

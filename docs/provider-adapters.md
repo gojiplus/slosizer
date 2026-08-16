@@ -19,18 +19,22 @@ That is enough to turn requests into adjusted work and then into required reserv
 
 ## Vertex AI GSU
 
-The package ships built-in Vertex AI profiles based on [Google Cloud's provisioned throughput documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/provisioned-throughput/supported-models).
+The package loads reviewed Vertex AI profiles from `src/slosizer/data/vertex.toml`. The catalog records [Google Cloud's Provisioned Throughput documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/provisioned-throughput/supported-models) as its source and includes the date the values were checked.
 
 ### Available Models
 
 | Model | Throughput per GSU | Output Weight | Long Context |
 |-------|-------------------|---------------|--------------|
-| gemini-2.0-flash-001 | 3,360 | 4x | No |
-| gemini-2.0-flash-lite-001 | 6,720 | 4x | No |
-| gemini-2.5-flash | 2,690 | 9x | Yes (>200k) |
+| gemini-2.5-flash | 2,690 | 9x | No |
 | gemini-2.5-flash-lite | 8,070 | 4x | No |
 | gemini-2.5-pro | 650 | 8x | Yes (>200k) |
-| gemini-3.1-flash-lite-preview | 4,030 | 6x | No |
+| gemini-3-flash-preview | 2,015 | 6x | No |
+| gemini-3.1-flash-lite | 4,030 | 6x | No |
+| gemini-3.1-pro-preview | 500 | 6x | Yes (>200k) |
+| gemini-3.5-flash | 675 | 6x | No |
+| gemini-3.5-flash-lite | 3,360 | 9x | No |
+| gemini-3.6-flash | 675 | 5x | No |
+| gemini-3.7-flash | 675 | 5x | No |
 
 ### Token Burndown Rates
 
@@ -43,10 +47,10 @@ Vertex AI uses different burndown rates for input vs output tokens:
 
 ### Long Context Threshold
 
-For models with long context support, requests exceeding 200,000 input tokens use elevated weights:
+For cataloged models with a long-context rule, requests exceeding 200,000 input tokens use the elevated weights stated by the provider. The exact output weight depends on the model.
 
 - Input: 2x (instead of 1x)
-- Output: 12x (instead of 8-9x)
+- Output: 9x or 12x
 
 ### Usage
 
@@ -58,21 +62,31 @@ profile = slz.vertex_profile("gemini-2.5-flash")
 
 These profiles are text-centric. If you use images, audio, video, or other token classes, add columns and extend the profile before trusting the numbers.
 
+To keep a private or faster-moving catalog outside the package:
+
+```python
+import slosizer as slz
+
+profiles = slz.load_capacity_profiles("capacity-profiles.toml")
+profile = profiles["my-exact-model-id"]
+```
+
 ## Azure OpenAI PTU
 
 Azure PTU support is calibration-first. PTU behavior is highly workload-sensitive, so we don't ship built-in profiles.
 
-Reference: [Azure OpenAI Provisioned Throughput](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/provisioned-throughput)
+Reference: [Microsoft Foundry PTU sizing](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/provisioned-throughput-sizing)
 
 ### Key Characteristics
 
-- **Workload-sensitive**: Throughput varies significantly based on prompt/completion ratios
-- **Token ratio**: For GPT-4.1 and later, 1 output token ≈ 4 input tokens
-- **Calibration required**: Use Azure capacity calculator + benchmarks
+- Throughput depends on the exact model, version, deployment type, prompt size, response size, cache rate, and call rate.
+- Current models publish input TPM per PTU and a model-specific output-to-input ratio.
+- Cached input does not consume PTU capacity for models covered by the current sizing formula.
+- The published values are estimates. Use representative benchmarks and the Provisioned-managed Utilization V2 metric before buying a reservation.
 
 ### Calibration Process
 
-1. Use the [Azure capacity calculator](https://oai.azure.com/portal/calculator) to estimate baseline throughput
+1. Use the Foundry sizing table or capacity calculator to estimate baseline throughput
 2. Deploy with your actual workload and measure via Azure Monitor
 3. Refine the profile based on observed throughput
 
@@ -82,13 +96,19 @@ Reference: [Azure OpenAI Provisioned Throughput](https://learn.microsoft.com/en-
 import slosizer as slz
 
 profile = slz.azure_profile(
-    "gpt-4.1",
-    throughput_per_unit=12000.0,
+    "gpt-5.2",
+    throughput_per_unit=3400 / 60,
+    purchase_increment=5,
+    min_units=15,
     input_weight=1.0,
-    output_weight=4.0,
-    thinking_weight=4.0,
+    cached_input_weight=0.0,
+    output_weight=8.0,
+    thinking_weight=8.0,
+    deployment_type="data_zone_provisioned",
 )
 ```
+
+`throughput_per_unit` is adjusted tokens per second, so divide the provider's input TPM per PTU by 60. The example values come from the current GPT-5.2 Data Zone sizing example in the official documentation; check the table again before use.
 
 ## Anthropic Claude (Planned)
 

@@ -1,5 +1,7 @@
 """Tests for provider adapters."""
 
+from datetime import date
+
 import pytest
 
 from slosizer.providers.azure import azure_profile
@@ -40,9 +42,7 @@ class TestVertexProfiles:
         assert profile.input_weight == 1.0
         assert profile.output_weight == 9.0
         assert profile.thinking_weight == 9.0
-        assert profile.long_input_threshold == 200_000
-        assert profile.long_input_input_weight == 2.0
-        assert profile.long_input_output_weight == 12.0
+        assert profile.long_input_threshold is None
 
     def test_gemini_25_pro_profile(self):
         profile = vertex_profile("gemini-2.5-pro")
@@ -52,10 +52,18 @@ class TestVertexProfiles:
         assert profile.long_input_threshold == 200_000
 
     def test_gemini_31_flash_lite_has_cached_weight(self):
-        profile = vertex_profile("gemini-3.1-flash-lite-preview")
+        profile = vertex_profile("gemini-3.1-flash-lite")
 
         assert profile.cached_input_weight == 0.1
         assert profile.output_weight == 6.0
+
+    def test_catalog_contains_current_review_metadata(self):
+        profile = vertex_profile("gemini-3.7-flash")
+
+        assert profile.throughput_per_unit == 675.0
+        assert profile.output_weight == 5.0
+        assert profile.verified_on == date(2026, 8, 15)
+        assert profile.source.startswith("https://cloud.google.com/")
 
     def test_profiles_have_valid_weights(self):
         for model in available_vertex_profiles():
@@ -114,8 +122,7 @@ class TestAzureProfile:
         )
 
         assert "Calibrated on 2024-01-01" in profile.notes
-        # Should also have default note
-        assert any("Azure capacity calculator" in note for note in profile.notes)
+        assert any("Foundry sizing" in note for note in profile.notes)
 
     def test_source_is_user_supplied(self):
         profile = azure_profile(

@@ -62,6 +62,30 @@ def _coerce_nonnegative_numeric(
     return values.astype(float)
 
 
+def _coerce_optional_nonnegative_numeric(
+    data: pd.DataFrame, source_col: str | None
+) -> pd.Series:
+    """Extract an optional non-negative numeric column, preserving missingness."""
+    if source_col is None or source_col not in data.columns:
+        return pd.Series(float("nan"), index=data.index, dtype=float)
+    values = cast(pd.Series, pd.to_numeric(data[source_col], errors="coerce"))
+    invalid = values.isna() & data[source_col].notna()
+    if invalid.any():
+        raise ValueError(f"Column {source_col!r} contains non-numeric values.")
+    if (values.dropna() < 0).any():
+        raise ValueError(f"Column {source_col!r} contains negative values.")
+    return values.astype(float)
+
+
+def _coerce_optional_text(
+    data: pd.DataFrame, source_col: str | None, *, default: str = ""
+) -> pd.Series:
+    """Extract an optional string column without turning missing values into text."""
+    if source_col is None or source_col not in data.columns:
+        return pd.Series(default, index=data.index, dtype="string")
+    return cast(pd.Series, data[source_col]).astype("string")
+
+
 def from_dataframe(
     df: pd.DataFrame,
     *,
@@ -104,12 +128,22 @@ def from_dataframe(
     raw = df.copy()
     frame = raw.copy()
 
-    frame["arrival_s"] = _normalize_arrival_seconds(raw[schema.time_col])
+    frame["arrival_s"] = _normalize_arrival_seconds(
+        cast(pd.Series, raw[schema.time_col])
+    )
     frame["class_name"] = (
         raw[schema.class_col].astype(str)
         if schema.class_col and schema.class_col in raw.columns
         else "default"
     )
+    frame["request_id"] = _coerce_optional_text(raw, schema.request_id_col)
+    frame["request_model"] = _coerce_optional_text(
+        raw, schema.request_model_col, default=model or ""
+    )
+    frame["response_model"] = _coerce_optional_text(
+        raw, schema.response_model_col, default=model or ""
+    )
+    frame["service_tier"] = _coerce_optional_text(raw, schema.service_tier_col)
     frame["input_tokens"] = (
         _coerce_nonnegative_numeric(raw, schema.input_tokens_col).round().astype(int)
     )
@@ -143,28 +177,30 @@ def from_dataframe(
         .astype(int)
     )
 
-    if schema.latency_col and schema.latency_col in raw.columns:
-        frame["observed_latency_s"] = _coerce_nonnegative_numeric(
-            raw, schema.latency_col
-        )
-    else:
-        frame["observed_latency_s"] = pd.Series(float("nan"), index=frame.index)
+    frame["observed_latency_s"] = _coerce_optional_nonnegative_numeric(
+        raw, schema.latency_col
+    )
+    frame["business_value"] = _coerce_optional_nonnegative_numeric(
+        raw, schema.business_value_col
+    )
 
     canonical_columns = [
         "arrival_s",
+        "request_id",
         "class_name",
+        "request_model",
+        "response_model",
+        "service_tier",
         "input_tokens",
         "cached_input_tokens",
         "output_tokens",
         "thinking_tokens",
         "max_output_tokens",
         "observed_latency_s",
+        "business_value",
     ]
-    frame = (
-        frame[canonical_columns]
-        .sort_values(by="arrival_s", kind="mergesort")
-        .reset_index(drop=True)
-    )
+    frame = cast(pd.DataFrame, frame.loc[:, canonical_columns])
+    frame = frame.sort_values("arrival_s", kind="mergesort").reset_index(drop=True)
 
     if validate:
         invalid_cache = frame["cached_input_tokens"] > frame["input_tokens"]

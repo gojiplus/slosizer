@@ -34,12 +34,12 @@ The optimized scenario applies four changes:
 
 | scenario | objective | target | recommended units | avg spare fraction (1s) | overload probability (1s) | achieved latency quantile |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| baseline | latency | p95 <= 1.5s | 5 | 0.718 | 0.030 | 1.315s |
-| baseline | latency | p99 <= 1.5s | 7 | 0.794 | 0.006 | 1.428s |
-| baseline | throughput | p99 units, overload <= 1% | 7 | 0.794 | 0.006 | - |
-| optimized | latency | p95 <= 1.5s | 4 | 0.713 | 0.032 | 1.157s |
-| optimized | latency | p99 <= 1.5s | 5 | 0.766 | 0.012 | 1.278s |
-| optimized | throughput | p99 units, overload <= 1% | 6 | 0.804 | 0.005 | - |
+| baseline | latency | p95 <= 1.5s | 2 | 0.718 | 0.031 | 1.320s |
+| baseline | latency | p99 <= 1.5s | 3 | 0.807 | 0.004 | 1.413s |
+| baseline | throughput | p99 units, overload <= 1% | 3 | 0.807 | 0.004 | - |
+| optimized | latency | p95 <= 1.5s | 2 | 0.779 | 0.009 | 0.954s |
+| optimized | latency | p99 <= 1.5s | 2 | 0.779 | 0.009 | 1.251s |
+| optimized | throughput | p99 units, overload <= 1% | 2 | 0.779 | 0.009 | - |
 
 ## Rendered plots
 

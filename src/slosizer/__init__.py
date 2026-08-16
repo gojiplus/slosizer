@@ -5,6 +5,8 @@ cloud LLM providers (Vertex AI GSU, Azure PTU) based on your workload
 characteristics and SLO targets.
 """
 
+from slosizer.catalog import load_capacity_profiles
+from slosizer.economics import compare_profit_scenarios, plan_profit_capacity
 from slosizer.hybrid import plan_hybrid_capacity
 from slosizer.ingest import from_dataframe
 from slosizer.planning import compare_scenarios, plan_capacity
@@ -20,7 +22,6 @@ from slosizer.schema import (
     BaselineLatencyModel,
     CapacityProfile,
     HybridPlanResult,
-    HybridPricingModel,
     HybridTarget,
     LatencyMetric,
     LatencySLO,
@@ -29,7 +30,11 @@ from slosizer.schema import (
     PaygoPricing,
     PlanOptions,
     PlanResult,
+    ProfitPlanResult,
+    ProfitScenario,
+    ProfitTarget,
     ProvisionedPricing,
+    RateCard,
     RequestSchema,
     RequestTrace,
     SimulationResult,
@@ -42,7 +47,6 @@ __all__ = [
     "BaselineLatencyModel",
     "CapacityProfile",
     "HybridPlanResult",
-    "HybridPricingModel",
     "HybridTarget",
     "LatencyMetric",
     "LatencySLO",
@@ -51,20 +55,27 @@ __all__ = [
     "PaygoPricing",
     "PlanOptions",
     "PlanResult",
+    "ProfitPlanResult",
+    "ProfitScenario",
+    "ProfitTarget",
     "ProvisionedPricing",
+    "RateCard",
     "RequestSchema",
     "RequestTrace",
     "SimulationResult",
     "ThroughputTarget",
     "available_vertex_profiles",
     "azure_profile",
+    "compare_profit_scenarios",
     "compare_scenarios",
     "fit_baseline_latency_model",
     "from_dataframe",
+    "load_capacity_profiles",
     "make_synthetic_trace",
     "optimize_trace",
     "plan_capacity",
     "plan_hybrid_capacity",
+    "plan_profit_capacity",
     "plot_capacity_tradeoff",
     "plot_latency_vs_units",
     "plot_required_units_distribution",

@@ -1,12 +1,18 @@
 # Formalization
 
-`slosizer` treats reserved-capacity planning as two related problems.
+`slosizer` treats reserved-capacity planning as three related problems.
 
-1. **Throughput planning**  
+1. **Throughput planning**
+
    Convert every request into provider-specific capacity work, then ask how many reserved units are needed so burst windows stay inside budget.
 
-2. **Latency planning**  
+2. **Latency planning**
+
    Split end-to-end latency into baseline model latency plus queue delay induced by bursty arrivals and finite reserved capacity.
+
+3. **Economic planning**
+
+   Maximize expected gross business value after inference and SLO-failure costs, subject to provider purchase constraints and any hard SLO.
 
 ## Generic request representation
 
@@ -97,3 +103,17 @@ Optimizing for p95 usually buys fewer reserved units and therefore lower average
 Optimizing for p99 buys more headroom and therefore lower overload probability, but also more idle capacity on average.
 
 That trade-off is not a bug. It is the whole game.
+
+## Economic planning
+
+For the normal fixed-demand case, the trace fixes gross value. A hard SLO removes noncompliant plans, so minimizing inference cost among compliant hybrid plans maximizes profit. `plan_hybrid_capacity()` implements this case without requiring business value.
+
+Let `V_m` be the expected gross business value per hour under model scenario `m`. Let `c_m` be the provisioned price per unit-hour, and let `K_m(G)` be the expected hourly cost of SLO misses at `G` units. The objective is:
+
+`Pi_m(G) = V_m - c_m * G - K_m(G)`
+
+For a hard SLO, the planner restricts the search to capacities where the share of requests at or below the latency threshold is at least the target percentile. In that case `K_m(G) = 0` because noncompliant choices are infeasible. For a priced SLO, `K_m(G)` is the number of bad requests per hour times the stated cost per miss.
+
+`plan_profit_capacity()` evaluates this objective when the user supplies business value. `compare_profit_scenarios()` handles the optional case where models have separate traces or values. The package does not estimate demand changes; each trace is an external workload forecast.
+
+See [Economics and data architecture](economics-and-data.md) for the storage and update contract behind these inputs.

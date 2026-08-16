@@ -1,13 +1,18 @@
 """Visualization functions for capacity planning results."""
 
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from slosizer.schema import CapacityProfile, LatencyTarget, PlanOptions, RequestTrace
-from slosizer.simulation import bucket_required_units, simulate_capacity
+from slosizer.simulation import (
+    bucket_required_units,
+    fit_baseline_latency_model,
+    simulate_capacity,
+)
 
 
 def _maybe_save(path: str | Path | None) -> None:
@@ -37,6 +42,10 @@ def plot_latency_vs_units(
     """
     if options is None:
         options = PlanOptions()
+    if options.baseline_latency_model is None:
+        options = replace(
+            options, baseline_latency_model=fit_baseline_latency_model(trace)
+        )
 
     rows = []
     for unit in units:

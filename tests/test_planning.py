@@ -1,5 +1,7 @@
 """Tests for capacity planning."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -59,6 +61,39 @@ def simple_trace():
 
 
 class TestPlanCapacity:
+    def test_reported_latency_quantile_matches_slo_attainment(
+        self, monkeypatch, simple_profile, simple_trace
+    ):
+        latency = np.array([1.0] * 95 + [2.0] * 5)
+        simulation = SimpleNamespace(
+            request_level=pd.DataFrame(
+                {"queue_delay_s": latency, "total_latency_s": latency}
+            ),
+            latency_summary=pd.DataFrame([{"p95_queue_delay_s": 1.0}]),
+            slack_summary=pd.DataFrame(),
+            assumptions={},
+        )
+        monkeypatch.setattr(
+            "slosizer.planning.simulate_capacity",
+            lambda *_args, **_kwargs: simulation,
+        )
+        target = LatencyTarget(
+            slo=LatencySLO(threshold_s=1.0, percentile=0.95, metric="queue_delay")
+        )
+
+        result = plan_capacity(
+            simple_trace,
+            simple_profile,
+            target,
+            options=PlanOptions(
+                baseline_latency_model=object(),
+                headroom_factor=0.0,
+            ),
+        )
+
+        assert result.metrics["slo_attainment"] == 0.95
+        assert result.metrics["achieved_latency_quantile_s"] == 1.0
+
     def test_throughput_planning(self, simple_profile, simple_trace):
         target = ThroughputTarget(percentile=0.99)
         result = plan_capacity(simple_trace, simple_profile, target)
@@ -85,6 +120,7 @@ class TestPlanCapacity:
         assert result.recommended_units >= simple_profile.min_units
         assert result.latency_summary is not None
         assert result.request_level is not None
+        assert result.metrics["slo_attainment"] >= 0.99
 
     def test_headroom_factor(self, simple_profile, simple_trace):
         target = ThroughputTarget(percentile=0.99)

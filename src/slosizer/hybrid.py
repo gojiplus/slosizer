@@ -6,19 +6,24 @@ for baseline load with pay-as-you-go for peak overflow traffic.
 
 from __future__ import annotations
 
-import numpy as np
+from dataclasses import replace
 
-from slosizer._utils import round_up_to_increment
+from slosizer._utils import capacity_candidates, round_up_to_increment
 from slosizer.schema import (
     CapacityProfile,
     HybridPlanResult,
-    HybridPricingModel,
     HybridTarget,
     LatencySLO,
     PlanOptions,
+    RateCard,
     RequestTrace,
 )
-from slosizer.simulation import bucket_with_tokens, simulate_capacity, summarize_slack
+from slosizer.simulation import (
+    bucket_with_tokens,
+    fit_baseline_latency_model,
+    simulate_capacity,
+    summarize_slack,
+)
 
 
 def compute_overflow_tokens(
@@ -41,7 +46,9 @@ def compute_overflow_tokens(
     Returns:
         Dictionary with overflow metrics:
         - overflow_input_tokens: Total overflow input tokens.
+        - overflow_cached_input_tokens: Total cached input overflow.
         - overflow_output_tokens: Total overflow output tokens.
+        - overflow_thinking_tokens: Total reasoning-token overflow.
         - overflow_fraction: Fraction of buckets with overflow.
         - trace_duration_hours: Duration of trace in hours.
     """
@@ -56,14 +63,20 @@ def compute_overflow_tokens(
     if buckets.empty:
         return {
             "overflow_input_tokens": 0.0,
+            "overflow_cached_input_tokens": 0.0,
             "overflow_output_tokens": 0.0,
+            "overflow_thinking_tokens": 0.0,
             "overflow_fraction": 0.0,
             "trace_duration_hours": 0.0,
         }
 
     overflow_frac = buckets["overflow_fraction"].to_numpy()
     overflow_input = (buckets["input_tokens"].to_numpy() * overflow_frac).sum()
+    overflow_cached_input = (
+        buckets["cached_input_tokens"].to_numpy() * overflow_frac
+    ).sum()
     overflow_output = (buckets["output_tokens"].to_numpy() * overflow_frac).sum()
+    overflow_thinking = (buckets["thinking_tokens"].to_numpy() * overflow_frac).sum()
     overflow_bucket_fraction = float((overflow_frac > 0).mean())
 
     arrivals = trace.frame["arrival_s"]
@@ -71,7 +84,9 @@ def compute_overflow_tokens(
 
     return {
         "overflow_input_tokens": float(overflow_input),
+        "overflow_cached_input_tokens": float(overflow_cached_input),
         "overflow_output_tokens": float(overflow_output),
+        "overflow_thinking_tokens": float(overflow_thinking),
         "overflow_fraction": overflow_bucket_fraction,
         "trace_duration_hours": trace_duration_hours,
     }
@@ -80,7 +95,7 @@ def compute_overflow_tokens(
 def _compute_hybrid_cost(
     trace: RequestTrace,
     profile: CapacityProfile,
-    pricing: HybridPricingModel,
+    pricing: RateCard,
     *,
     units: int,
     window_s: float,
@@ -98,7 +113,13 @@ def _compute_hybrid_cost(
 
     Returns:
         Dictionary with cost breakdown.
+
+    Raises:
+        ValueError: If the rate card has no paygo prices.
     """
+    if pricing.paygo is None:
+        raise ValueError("pricing.paygo is required for hybrid planning")
+    paygo = pricing.paygo
     overflow = compute_overflow_tokens(
         trace,
         profile,
@@ -112,14 +133,29 @@ def _compute_hybrid_cost(
     duration_h = overflow["trace_duration_hours"]
     if duration_h > 0:
         overflow_input_hourly = overflow["overflow_input_tokens"] / duration_h
+        overflow_cached_input_hourly = (
+            overflow["overflow_cached_input_tokens"] / duration_h
+        )
         overflow_output_hourly = overflow["overflow_output_tokens"] / duration_h
+        overflow_thinking_hourly = overflow["overflow_thinking_tokens"] / duration_h
     else:
         overflow_input_hourly = 0.0
+        overflow_cached_input_hourly = 0.0
         overflow_output_hourly = 0.0
+        overflow_thinking_hourly = 0.0
 
+    overflow_uncached_input_hourly = max(
+        0.0, overflow_input_hourly - overflow_cached_input_hourly
+    )
     paygo_cost_hourly = (
-        overflow_input_hourly * pricing.paygo.input_cost_per_million / 1_000_000
-        + overflow_output_hourly * pricing.paygo.output_cost_per_million / 1_000_000
+        overflow_uncached_input_hourly * paygo.input_cost_per_million / 1_000_000
+        + overflow_cached_input_hourly
+        * paygo.effective_cached_input_cost_per_million
+        / 1_000_000
+        + overflow_output_hourly * paygo.output_cost_per_million / 1_000_000
+        + overflow_thinking_hourly
+        * paygo.effective_thinking_cost_per_million
+        / 1_000_000
     )
 
     return {
@@ -128,7 +164,9 @@ def _compute_hybrid_cost(
         "total_cost_hourly": provisioned_cost_hourly + paygo_cost_hourly,
         "overflow_fraction": overflow["overflow_fraction"],
         "overflow_input_tokens_hourly": overflow_input_hourly,
+        "overflow_cached_input_tokens_hourly": overflow_cached_input_hourly,
         "overflow_output_tokens_hourly": overflow_output_hourly,
+        "overflow_thinking_tokens_hourly": overflow_thinking_hourly,
     }
 
 
@@ -141,12 +179,12 @@ def _check_latency_slo(
     options: PlanOptions,
 ) -> bool:
     """Check if a capacity level meets the latency SLO."""
+    if units == 0:
+        return False
     simulation = simulate_capacity(trace, profile, units=units, options=options)
     metric_col = "total_latency_s" if str(slo.metric) == "e2e" else "queue_delay_s"
-    quantile_value = float(
-        np.quantile(simulation.request_level[metric_col], slo.percentile)
-    )
-    return quantile_value <= slo.threshold_s
+    latency = simulation.request_level[metric_col].to_numpy(dtype=float)
+    return float((latency <= slo.threshold_s).mean()) >= slo.percentile
 
 
 def _find_full_provision_units(
@@ -174,10 +212,18 @@ def _find_full_provision_units(
     )
 
 
+def _hybrid_candidates(profile: CapacityProfile, max_units: int) -> list[int]:
+    """Return legal hybrid choices: no reservation or a valid deployment size."""
+    return [
+        0,
+        *capacity_candidates(profile.min_units, profile.purchase_increment, max_units),
+    ]
+
+
 def plan_hybrid_capacity(
     trace: RequestTrace,
     profile: CapacityProfile,
-    pricing: HybridPricingModel,
+    pricing: RateCard,
     target: HybridTarget,
     options: PlanOptions | None = None,
 ) -> HybridPlanResult:
@@ -205,9 +251,21 @@ def plan_hybrid_capacity(
     """
     if options is None:
         options = PlanOptions()
+    if target.strategy == "cost_optimal" and options.headroom_factor != 0:
+        raise ValueError(
+            "headroom_factor is not compatible with cost optimization; "
+            "represent forecast uncertainty with workload scenarios"
+        )
 
     if profile.throughput_per_unit is None:
         raise ValueError("profile.throughput_per_unit must be set before planning.")
+    pricing.validate_for(profile)
+    if pricing.paygo is None:
+        raise ValueError("pricing.paygo is required for hybrid planning")
+    if target.latency_slo is not None and options.baseline_latency_model is None:
+        options = replace(
+            options, baseline_latency_model=fit_baseline_latency_model(trace)
+        )
 
     window_s = 1.0
     output_token_source = str(options.output_token_source)
@@ -242,6 +300,12 @@ def plan_hybrid_capacity(
         provisioned_units = round_up_to_increment(
             percentile_units, profile.min_units, profile.purchase_increment
         )
+        if provisioned_units > options.max_units_to_search:
+            raise RuntimeError(
+                "Percentile target requires "
+                f"{provisioned_units} {profile.unit_name}, above the search limit "
+                f"of {options.max_units_to_search}"
+            )
 
         if target.latency_slo is not None and not _check_latency_slo(
             trace, profile, target.latency_slo, units=provisioned_units, options=options
@@ -278,21 +342,13 @@ def plan_hybrid_capacity(
         best_cost = float("inf")
         best_costs: dict[str, float] = {}
 
-        for units in range(
-            0, options.max_units_to_search + 1, profile.purchase_increment
-        ):
-            effective_units = max(units, 0)
-
-            if (
-                target.latency_slo is not None
-                and effective_units > 0
-                and not _check_latency_slo(
-                    trace,
-                    profile,
-                    target.latency_slo,
-                    units=effective_units,
-                    options=options,
-                )
+        for effective_units in _hybrid_candidates(profile, options.max_units_to_search):
+            if target.latency_slo is not None and not _check_latency_slo(
+                trace,
+                profile,
+                target.latency_slo,
+                units=effective_units,
+                options=options,
             ):
                 continue
 
@@ -360,7 +416,18 @@ def plan_hybrid_capacity(
         "headroom_factor": options.headroom_factor,
         "provisioned_cost_per_unit_hour": pricing.provisioned.cost_per_unit_hour,
         "paygo_input_cost_per_million": pricing.paygo.input_cost_per_million,
+        "paygo_cached_input_cost_per_million": (
+            pricing.paygo.effective_cached_input_cost_per_million
+        ),
         "paygo_output_cost_per_million": pricing.paygo.output_cost_per_million,
+        "paygo_thinking_cost_per_million": (
+            pricing.paygo.effective_thinking_cost_per_million
+        ),
+        "currency": pricing.currency,
+        "pricing_effective_from": pricing.effective_from,
+        "pricing_effective_to": pricing.effective_to,
+        "pricing_verified_on": pricing.verified_on,
+        "pricing_source": pricing.source,
     }
     if target.latency_slo is not None:
         assumptions["latency_slo_threshold_s"] = target.latency_slo.threshold_s
@@ -370,6 +437,7 @@ def plan_hybrid_capacity(
     return HybridPlanResult(
         provisioned_units=provisioned_units,
         unit_name=profile.unit_name,
+        currency=pricing.currency,
         provisioned_cost_hourly=costs["provisioned_cost_hourly"],
         paygo_cost_hourly=costs["paygo_cost_hourly"],
         total_cost_hourly=costs["total_cost_hourly"],
@@ -379,7 +447,11 @@ def plan_hybrid_capacity(
         savings_percent=savings_percent,
         overflow_fraction=costs["overflow_fraction"],
         overflow_input_tokens_hourly=costs["overflow_input_tokens_hourly"],
+        overflow_cached_input_tokens_hourly=costs[
+            "overflow_cached_input_tokens_hourly"
+        ],
         overflow_output_tokens_hourly=costs["overflow_output_tokens_hourly"],
+        overflow_thinking_tokens_hourly=costs["overflow_thinking_tokens_hourly"],
         slack_summary=slack_summary,
         assumptions=assumptions,
     )

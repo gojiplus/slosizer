@@ -7,9 +7,10 @@ import slosizer as slz
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-profile = slz.vertex_profile("gemini-2.0-flash-001")
+profile = slz.vertex_profile("gemini-2.5-flash-lite")
 baseline = slz.make_synthetic_trace(seed=42, scenario="baseline")
 optimized = slz.make_synthetic_trace(seed=42, scenario="optimized")
+options = slz.PlanOptions(baseline_latency_model=slz.BaselineLatencyModel())
 
 targets = [
     slz.LatencyTarget(slz.LatencySLO(threshold_s=1.5, percentile=0.95)),
@@ -23,6 +24,7 @@ comparison = slz.compare_scenarios(
     {"baseline": baseline, "optimized": optimized},
     profile,
     targets,
+    options=options,
 )
 comparison.to_csv(OUTPUT_DIR / "comparison.csv", index=False)
 
@@ -36,6 +38,7 @@ slz.plot_latency_vs_units(
     baseline,
     profile,
     units=range(1, 13),
+    options=options,
     target=latency_target,
     path=OUTPUT_DIR / "latency_vs_capacity.png",
 )
