@@ -63,6 +63,50 @@ class TestFromDataframe:
         np.testing.assert_array_equal(trace.frame["cached_input_tokens"], [10, 50, 30])
         np.testing.assert_array_equal(trace.frame["thinking_tokens"], [0, 20, 0])
 
+    def test_economic_and_model_telemetry(self):
+        df = pd.DataFrame(
+            {
+                "ts": [0.0, 1.0],
+                "input_tokens": [100, 200],
+                "output_tokens": [20, 30],
+                "span_id": ["a", "b"],
+                "requested": ["model-a", "model-a"],
+                "served": ["model-a-001", "model-a-002"],
+                "tier": ["provisioned", "standard"],
+                "margin": [0.2, 0.5],
+            }
+        )
+        trace = from_dataframe(
+            df,
+            schema=RequestSchema(
+                request_id_col="span_id",
+                request_model_col="requested",
+                response_model_col="served",
+                service_tier_col="tier",
+                business_value_col="margin",
+            ),
+        )
+
+        assert list(trace.frame["request_id"]) == ["a", "b"]
+        assert list(trace.frame["response_model"]) == [
+            "model-a-001",
+            "model-a-002",
+        ]
+        assert list(trace.frame["service_tier"]) == ["provisioned", "standard"]
+        np.testing.assert_array_equal(trace.frame["business_value"], [0.2, 0.5])
+
+    def test_negative_business_value_rejected(self, basic_df):
+        basic_df["business_value"] = [0.1, -0.1, 0.2]
+        with pytest.raises(ValueError, match="negative values"):
+            from_dataframe(basic_df, schema=RequestSchema())
+
+    def test_missing_observed_latency_is_preserved(self, basic_df):
+        basic_df["latency_s"] = [0.5, None, 0.75]
+
+        trace = from_dataframe(basic_df, schema=RequestSchema())
+
+        assert trace.frame["observed_latency_s"].isna().sum() == 1
+
     def test_arrival_normalization(self):
         df = pd.DataFrame(
             {

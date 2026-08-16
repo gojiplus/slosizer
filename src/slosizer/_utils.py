@@ -29,6 +29,24 @@ def round_up_to_increment(units: float, minimum: int, increment: int) -> int:
     return int(math.ceil(base / increment) * increment)
 
 
+def capacity_candidates(minimum: int, increment: int, maximum: int) -> list[int]:
+    """Return legal nonzero capacity choices within a search limit.
+
+    Provider purchase increments form a grid anchored at zero. The first legal
+    choice is therefore the smallest multiple of ``increment`` that is at least
+    ``minimum``.
+    """
+    first = round_up_to_increment(minimum, minimum, increment)
+    if first > maximum:
+        return []
+    return list(range(first, maximum + 1, increment))
+
+
+def empirical_quantile(values: np.ndarray | pd.Series, quantile: float) -> float:
+    """Return the inverse empirical CDF at ``quantile`` without interpolation."""
+    return float(np.quantile(values, quantile, method="inverted_cdf"))
+
+
 def selected_output_tokens(
     frame: pd.DataFrame, source: str | OutputTokenSource
 ) -> np.ndarray:

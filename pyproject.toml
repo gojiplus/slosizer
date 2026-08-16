@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "slosizer"
-description = "Capacity planning for reserved LLM throughput: latency, headroom, and synthetic workload simulation."
+description = "Profit-aware LLM capacity planning for latency SLOs, reserved throughput, and paygo overflow."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -12,12 +12,13 @@ requires-python = ">=3.13"
 authors = [
   {name = "Gaurav Sood", email = "contact@gsood.com"}
 ]
-keywords = ["llm", "capacity-planning", "slo", "vertex-ai", "azure-openai", "throughput", "latency"]
+keywords = ["llm", "capacity-planning", "cost-optimization", "slo", "vertex-ai", "azure-openai", "throughput", "latency"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -32,6 +33,8 @@ dynamic = ["version"]
 Homepage = "https://github.com/gojiplus/slosizer"
 Documentation = "https://gojiplus.github.io/slosizer"
 Repository = "https://github.com/gojiplus/slosizer"
+Changelog = "https://github.com/gojiplus/slosizer/blob/main/CHANGELOG.md"
+Issues = "https://github.com/gojiplus/slosizer/issues"
 
 [dependency-groups]
 dev = [
@@ -93,7 +96,7 @@ exclude = '\.venv|tests|docs'
 
 [tool.deptry]
 known_first_party = ["slosizer"]
-extend_exclude = ["examples/output", "docs/assets"]
+extend_exclude = ["examples/output", "docs", "streamlit_app.py"]
 ignore_notebooks = true
 
 [tool.vulture]

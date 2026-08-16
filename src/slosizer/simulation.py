@@ -10,7 +10,7 @@ from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
-from slosizer._utils import adjusted_work
+from slosizer._utils import adjusted_work, empirical_quantile
 from slosizer.schema import (
     BaselineLatencyModel,
     CapacityProfile,
@@ -18,6 +18,12 @@ from slosizer.schema import (
     RequestTrace,
     SimulationResult,
 )
+
+
+def _bucket_edges(max_time: float, window_s: float) -> np.ndarray:
+    """Return fixed-width edges including the bucket containing ``max_time``."""
+    n_buckets = int(np.floor(max_time / window_s)) + 1
+    return np.arange(n_buckets + 1, dtype=float) * window_s
 
 
 def fit_baseline_latency_model(trace: RequestTrace) -> BaselineLatencyModel:
@@ -118,9 +124,7 @@ def bucket_required_units(
     rows: list[dict[str, float]] = []
     max_time = float(arrivals.max())
     for window_s in windows_s:
-        edges = np.arange(0.0, max_time + window_s, window_s)
-        if len(edges) < 2:
-            edges = np.array([0.0, window_s], dtype=float)
+        edges = _bucket_edges(max_time, window_s)
         bucket_index = np.digitize(arrivals, edges, right=False) - 1
         required_units = np.zeros(len(edges) - 1, dtype=float)
         scale = float(profile.throughput_per_unit) * float(window_s)
@@ -199,9 +203,7 @@ def bucket_with_tokens(
         )
 
     max_time = float(arrivals.max())
-    edges = np.arange(0.0, max_time + window_s, window_s)
-    if len(edges) < 2:
-        edges = np.array([0.0, window_s], dtype=float)
+    edges = _bucket_edges(max_time, window_s)
 
     n_buckets = len(edges) - 1
     bucket_index = np.digitize(arrivals, edges, right=False) - 1
@@ -225,11 +227,13 @@ def bucket_with_tokens(
     required_units = bucket_work / scale
     capacity = float(units)
     overflow_units = np.maximum(0.0, required_units - capacity)
-    overflow_fraction = np.where(
-        required_units > 0,
-        np.minimum(1.0, overflow_units / required_units),
-        0.0,
+    overflow_fraction = np.divide(
+        overflow_units,
+        required_units,
+        out=np.zeros_like(required_units),
+        where=required_units > 0,
     )
+    overflow_fraction = np.minimum(1.0, overflow_fraction)
 
     return pd.DataFrame(
         {
@@ -351,12 +355,12 @@ def simulate_capacity(
             [
                 {
                     "mean_latency_s": float(total_latency.mean()),
-                    "p50_latency_s": float(np.quantile(total_latency, 0.50)),
-                    "p95_latency_s": float(np.quantile(total_latency, 0.95)),
-                    "p99_latency_s": float(np.quantile(total_latency, 0.99)),
+                    "p50_latency_s": empirical_quantile(total_latency, 0.50),
+                    "p95_latency_s": empirical_quantile(total_latency, 0.95),
+                    "p99_latency_s": empirical_quantile(total_latency, 0.99),
                     "mean_queue_delay_s": float(queue_delay.mean()),
-                    "p95_queue_delay_s": float(np.quantile(queue_delay, 0.95)),
-                    "p99_queue_delay_s": float(np.quantile(queue_delay, 0.99)),
+                    "p95_queue_delay_s": empirical_quantile(queue_delay, 0.95),
+                    "p99_queue_delay_s": empirical_quantile(queue_delay, 0.99),
                     "queue_probability": float((queue_delay > 0).mean()),
                     "utilization": float(work.sum() / (duration_s * service_rate)),
                 }

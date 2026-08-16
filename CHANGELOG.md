@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-16
+
+### Added
+
+- Profit-aware reserved-capacity planning with hard or priced latency SLOs,
+  auditable candidate frontiers, and cross-model scenario comparison.
+- Versioned TOML capacity catalogs and a public loader for private provider
+  profiles.
+- Request, response model, service tier, request ID, and business-value fields
+  in normalized traces.
+- Effective-dated rate cards with provider, model, region, deployment, currency,
+  and source metadata.
+- Hybrid provisioned + pay-as-you-go planning with premium paygo backup.
+
 ### Changed
 
 - Adopted the py-canon fleet template: reusable CI, docs, and release
@@ -17,12 +31,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Hybrid planning with `strategy="percentile_split"` now raises
   `ValueError` from the planner as well when `provision_percentile` is
   unset, instead of relying solely on target validation.
-
-## [0.3.0] - 2026-04-15 (unpublished)
-
-### Added
-
-- Hybrid provisioned + pay-as-you-go planning with premium paygo backup.
+- Hybrid paygo costing now prices uncached input, cached input, output, and
+  separately reported thinking tokens. Nonzero capacity choices respect the
+  provider minimum, and zero provisioned units cannot bypass a latency SLO.
+- Vertex profiles now load from a reviewed catalog checked on 2026-08-15 and
+  cover the current documented text-model lineup.
+- Time buckets now retain requests that arrive exactly on the last observed
+  boundary and compute empty-bucket overflow without divide-by-zero warnings.
+- Economic comparisons now reject mixed currencies and non-finite prices or
+  business inputs. All planners use the same provider purchase grid, and
+  reported latency quantiles use the same empirical convention as SLO
+  qualification.
 
 ## [0.2.0] - 2026-03-06
 

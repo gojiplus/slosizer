@@ -1,22 +1,25 @@
 """Tests for hybrid capacity planning."""
 
+from dataclasses import replace
+from datetime import date
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from slosizer import (
     HybridPlanResult,
-    HybridPricingModel,
     HybridTarget,
     LatencySLO,
     PaygoPricing,
     PlanOptions,
     ProvisionedPricing,
+    RateCard,
     RequestSchema,
     from_dataframe,
     plan_hybrid_capacity,
 )
-from slosizer.hybrid import compute_overflow_tokens
+from slosizer.hybrid import _hybrid_candidates, compute_overflow_tokens
 from slosizer.schema import CapacityProfile
 from slosizer.simulation import bucket_with_tokens
 
@@ -87,7 +90,7 @@ def bursty_trace():
 
 @pytest.fixture
 def standard_pricing():
-    return HybridPricingModel(
+    return RateCard(
         provisioned=ProvisionedPricing(cost_per_unit_hour=2.50),
         paygo=PaygoPricing(
             input_cost_per_million=0.30,
@@ -121,6 +124,34 @@ class TestPaygoPricing:
         ):
             PaygoPricing(input_cost_per_million=0.30, output_cost_per_million=-2.50)
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf")])
+    def test_non_finite_cost_raises(self, value):
+        with pytest.raises(ValueError, match="must be finite"):
+            PaygoPricing(
+                input_cost_per_million=value,
+                output_cost_per_million=2.50,
+            )
+
+    def test_optional_token_prices(self):
+        pricing = PaygoPricing(
+            input_cost_per_million=1.0,
+            cached_input_cost_per_million=0.1,
+            output_cost_per_million=4.0,
+            thinking_cost_per_million=5.0,
+        )
+
+        assert pricing.effective_cached_input_cost_per_million == 0.1
+        assert pricing.effective_thinking_cost_per_million == 5.0
+
+    def test_optional_token_prices_fall_back_conservatively(self):
+        pricing = PaygoPricing(
+            input_cost_per_million=1.0,
+            output_cost_per_million=4.0,
+        )
+
+        assert pricing.effective_cached_input_cost_per_million == 1.0
+        assert pricing.effective_thinking_cost_per_million == 4.0
+
 
 class TestProvisionedPricing:
     def test_valid_pricing(self):
@@ -134,6 +165,29 @@ class TestProvisionedPricing:
     def test_negative_cost_raises(self):
         with pytest.raises(ValueError, match="cost_per_unit_hour must be non-negative"):
             ProvisionedPricing(cost_per_unit_hour=-2.50)
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf")])
+    def test_non_finite_cost_raises(self, value):
+        with pytest.raises(ValueError, match="cost_per_unit_hour must be finite"):
+            ProvisionedPricing(cost_per_unit_hour=value)
+
+
+class TestRateCard:
+    def test_currency_is_normalized(self):
+        rate_card = RateCard(
+            provisioned=ProvisionedPricing(cost_per_unit_hour=1.0),
+            currency="usd",
+        )
+
+        assert rate_card.currency == "USD"
+
+    def test_effective_date_order_is_validated(self):
+        with pytest.raises(ValueError, match="effective_to"):
+            RateCard(
+                provisioned=ProvisionedPricing(cost_per_unit_hour=1.0),
+                effective_from=date(2026, 8, 15),
+                effective_to=date(2026, 8, 14),
+            )
 
 
 class TestHybridTarget:
@@ -162,6 +216,10 @@ class TestHybridTarget:
             ValueError, match="provision_percentile must be in \\(0, 1\\)"
         ):
             HybridTarget(strategy="percentile_split", provision_percentile=0.0)
+
+    def test_invalid_strategy_raises(self):
+        with pytest.raises(ValueError, match="unknown hybrid strategy"):
+            HybridTarget(strategy="unknown")
 
     def test_with_latency_slo(self):
         slo = LatencySLO(threshold_s=1.5, percentile=0.99)
@@ -205,12 +263,32 @@ class TestBucketWithTokens:
             simple_trace.frame,
             simple_profile,
             units=10,
-            window_s=10.0,
+            window_s=1.0,
             output_token_source="observed",
         )
 
         total_input = result["input_tokens"].sum()
         assert total_input == 100 * 100
+
+    def test_empty_intermediate_buckets_do_not_divide_by_zero(
+        self, simple_profile, simple_trace
+    ):
+        sparse_frame = simple_trace.frame.iloc[[0, -1]]
+
+        with np.errstate(divide="raise", invalid="raise"):
+            result = bucket_with_tokens(
+                sparse_frame,
+                simple_profile,
+                units=1,
+                window_s=1.0,
+                output_token_source="observed",
+            )
+
+        assert len(result) == 100
+        assert result["input_tokens"].sum() == 200
+        assert (
+            result.loc[result["required_units"] == 0, "overflow_fraction"].eq(0).all()
+        )
 
     def test_overflow_fraction_calculation(self, simple_profile, simple_trace):
         result = bucket_with_tokens(
@@ -295,6 +373,18 @@ class TestComputeOverflowTokens:
 
 
 class TestPlanHybridCapacity:
+    def test_candidates_share_provider_purchase_grid(self):
+        profile = CapacityProfile(
+            provider="test",
+            model="test-model",
+            unit_name="GSU",
+            throughput_per_unit=1000.0,
+            min_units=3,
+            purchase_increment=5,
+        )
+
+        assert _hybrid_candidates(profile, 16) == [0, 5, 10, 15]
+
     def test_cost_optimal_basic(self, simple_profile, simple_trace, standard_pricing):
         target = HybridTarget(strategy="cost_optimal")
         result = plan_hybrid_capacity(
@@ -318,6 +408,20 @@ class TestPlanHybridCapacity:
 
         assert isinstance(result, HybridPlanResult)
         assert result.provisioned_units >= 0
+
+    def test_percentile_split_respects_search_limit(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
+        profile = replace(simple_profile, throughput_per_unit=100.0)
+
+        with pytest.raises(RuntimeError, match="above the search limit"):
+            plan_hybrid_capacity(
+                simple_trace,
+                profile,
+                standard_pricing,
+                HybridTarget(strategy="percentile_split", provision_percentile=0.50),
+                options=PlanOptions(max_units_to_search=1),
+            )
 
     def test_hybrid_cost_le_full_provision(
         self, simple_profile, bursty_trace, standard_pricing
@@ -349,10 +453,53 @@ class TestPlanHybridCapacity:
             simple_trace, simple_profile, standard_pricing, target
         )
 
-        assert result.provisioned_units >= 0
+        assert result.provisioned_units > 0
+
+    def test_nonzero_candidates_respect_provider_minimum(
+        self, simple_profile, simple_trace
+    ):
+        profile = replace(simple_profile, min_units=15, purchase_increment=5)
+        expensive_paygo = RateCard(
+            provisioned=ProvisionedPricing(cost_per_unit_hour=0.01),
+            paygo=PaygoPricing(
+                input_cost_per_million=10000.0,
+                output_cost_per_million=10000.0,
+            ),
+        )
+        result = plan_hybrid_capacity(
+            simple_trace,
+            profile,
+            expensive_paygo,
+            HybridTarget(strategy="cost_optimal"),
+        )
+
+        assert result.provisioned_units >= 15
+        assert (result.provisioned_units - 15) % 5 == 0
+
+    def test_pricing_scope_must_match_profile(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
+        scoped_pricing = replace(standard_pricing, model="different-model")
+        with pytest.raises(ValueError, match="does not match"):
+            plan_hybrid_capacity(
+                simple_trace,
+                simple_profile,
+                scoped_pricing,
+                HybridTarget(strategy="cost_optimal"),
+            )
+
+    def test_paygo_prices_are_required(self, simple_profile, simple_trace):
+        rate_card = RateCard(provisioned=ProvisionedPricing(cost_per_unit_hour=1.0))
+        with pytest.raises(ValueError, match=r"pricing\.paygo is required"):
+            plan_hybrid_capacity(
+                simple_trace,
+                simple_profile,
+                rate_card,
+                HybridTarget(strategy="cost_optimal"),
+            )
 
     def test_full_paygo_when_cheaper(self, simple_profile, simple_trace):
-        expensive_provisioned = HybridPricingModel(
+        expensive_provisioned = RateCard(
             provisioned=ProvisionedPricing(cost_per_unit_hour=1000.0),
             paygo=PaygoPricing(
                 input_cost_per_million=0.001,
@@ -368,7 +515,7 @@ class TestPlanHybridCapacity:
         assert result.paygo_cost_hourly > 0
 
     def test_full_provisioned_when_cheaper(self, simple_profile, simple_trace):
-        expensive_paygo = HybridPricingModel(
+        expensive_paygo = RateCard(
             provisioned=ProvisionedPricing(cost_per_unit_hour=0.01),
             paygo=PaygoPricing(
                 input_cost_per_million=10000.0,
@@ -406,6 +553,18 @@ class TestPlanHybridCapacity:
         )
 
         assert result_with.provisioned_units >= result_no.provisioned_units
+
+    def test_cost_optimal_rejects_post_optimization_headroom(
+        self, simple_profile, simple_trace, standard_pricing
+    ):
+        with pytest.raises(ValueError, match="headroom_factor"):
+            plan_hybrid_capacity(
+                simple_trace,
+                simple_profile,
+                standard_pricing,
+                HybridTarget(strategy="cost_optimal"),
+                options=PlanOptions(headroom_factor=0.2),
+            )
 
     def test_throughput_not_set_raises(self, simple_trace, standard_pricing):
         profile = CapacityProfile(

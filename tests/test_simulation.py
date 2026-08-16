@@ -71,8 +71,8 @@ class TestBucketRequiredUnits:
         assert "required_units" in result.columns
         assert "spare_units" in result.columns
         assert "overflow_units" in result.columns
-        # 10 requests at times 0-9 creates 9 buckets (0-1, 1-2, ..., 8-9)
-        assert len(result) == 9
+        # Requests at times 0-9 occupy 10 buckets, including [9, 10).
+        assert len(result) == 10
 
     def test_multiple_windows(self, simple_profile, simple_trace):
         result = bucket_required_units(
@@ -84,7 +84,7 @@ class TestBucketRequiredUnits:
         )
 
         window_counts = result.groupby("window_s").size()
-        assert window_counts[1.0] == 9  # 0-9 seconds = 9 buckets
+        assert window_counts[1.0] == 10  # [0, 1) through [9, 10)
         assert window_counts[5.0] == 2  # 0-5, 5-10 = 2 buckets
 
     def test_spare_and_overflow(self, simple_profile, simple_trace):
@@ -254,6 +254,30 @@ class TestFitBaselineLatencyModel:
 
 
 class TestSimulateCapacity:
+    def test_latency_summary_uses_slo_empirical_quantiles(self, simple_profile):
+        frame = pd.DataFrame(
+            {
+                "ts": np.arange(100, dtype=float),
+                "input_tokens": [0] * 100,
+                "output_tokens": [0] * 100,
+            }
+        )
+        trace = from_dataframe(frame, schema=RequestSchema())
+
+        class BoundaryLatencyModel:
+            def predict(self, request_frame):
+                assert len(request_frame) == 100
+                return np.array([1.0] * 95 + [2.0] * 5)
+
+        result = simulate_capacity(
+            trace,
+            simple_profile,
+            units=1,
+            options=PlanOptions(baseline_latency_model=BoundaryLatencyModel()),
+        )
+
+        assert result.latency_summary["p95_latency_s"].iloc[0] == 1.0
+
     def test_basic_simulation(self, simple_profile, simple_trace):
         result = simulate_capacity(
             simple_trace,
