@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling", "uv-dynamic-versioning"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.5,<0.13"]
+build-backend = "uv_build"
 
 [project]
 name = "slosizer"
@@ -26,8 +26,9 @@ dependencies = [
   "numpy",
   "pandas",
   "matplotlib",
+  "pyarrow>=24,<25",
 ]
-dynamic = ["version"]
+version = "0.3.1"
 
 [project.urls]
 Homepage = "https://github.com/gojiplus/slosizer"
@@ -37,14 +38,18 @@ Changelog = "https://github.com/gojiplus/slosizer/blob/main/CHANGELOG.md"
 Issues = "https://github.com/gojiplus/slosizer/issues"
 
 [dependency-groups]
+test = [
+  "pytest>=9.1.1",
+  "pytest-cov>=7.1",
+]
 dev = [
-  "pytest",
-  "ruff",
-  "deptry",
-  "vulture",
-  "pydoclint",
-  "pyright",
-  "pandas-stubs>=3.0.3.260530",
+  { include-group = "test" },
+  "ruff>=0.16.3",
+  "deptry>=0.25.1",
+  "vulture>=2.16",
+  "pydoclint>=0.9.1",
+  "pyright>=1.1.411",
+  "pandas-stubs>=3.0.5.260730",
 ]
 docs = [
   "sphinx",
@@ -55,17 +60,19 @@ docs = [
   "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
 ]
 app = [
-  "streamlit>=1.30",
+  "streamlit>=1.61.1",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/slosizer"]
-
-[tool.hatch.version]
-source = "uv-dynamic-versioning"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
 
 [tool.ruff]
 line-length = 88
@@ -73,16 +80,21 @@ target-version = "py313"
 
 [tool.ruff.lint]
 external = ["DOC"]
-select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF"]
-# S106/S107: the `output_token_source` kwarg (LLM tokens) trips bandit's
-# hardcoded-password heuristics
-ignore = ["D203", "D213", "D105", "E501", "S106", "S107"]
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF",
+    "PTH", "RET", "PIE", "FURB", "PERF", "DTZ", "LOG", "G", "TC", "FLY",
+    "RSE", "SLOT", "FA", "A", "EXE", "ICN", "PGH", "PLE", "ARG", "SLF",
+]
+# D203/D213: the google convention the fleet standard picks. W191/D206/D300:
+# ruff's own docs list these as always incompatible with `ruff format`, which
+# the standard also runs.
+ignore = ["D203", "D213", "W191", "D206", "D300", "D105", "E501", "S106", "S107"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D"]
+"tests/**" = ["S101", "D", "ARG", "SLF"]
 "docs/**" = ["D"]
 "examples/**" = ["T201", "D100"]
 
@@ -99,6 +111,9 @@ known_first_party = ["slosizer"]
 extend_exclude = ["examples/output", "docs", "streamlit_app.py"]
 ignore_notebooks = true
 
+[tool.deptry.per_rule_ignores]
+DEP002 = ["pyarrow"]
+
 [tool.vulture]
 paths = ["src", "tests", "examples"]
 exclude = ["examples/output/", "docs/assets/"]
@@ -109,6 +124,5 @@ sort_by_size = true
 include = ["src"]
 typeCheckingMode = "standard"
 
-[tool.uv-dynamic-versioning]
-vcs = "git"
-style = "pep440"
+[tool.uv.build-backend]
+module-name = "slosizer"

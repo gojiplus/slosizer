@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
 from slosizer.schema import CapacityProfile, LatencyTarget, PlanOptions, RequestTrace
@@ -18,6 +17,8 @@ from slosizer.simulation import (
 def _maybe_save(path: str | Path | None) -> None:
     """Save figure to path if provided."""
     if path is not None:
+        import matplotlib.pyplot as plt
+
         plt.savefig(path, dpi=180, bbox_inches="tight")
 
 
@@ -40,6 +41,8 @@ def plot_latency_vs_units(
         target: Optional latency target to show as horizontal line.
         path: Optional path to save the figure.
     """
+    import matplotlib.pyplot as plt
+
     if options is None:
         options = PlanOptions()
     if options.baseline_latency_model is None:
@@ -93,6 +96,8 @@ def plot_required_units_distribution(
         options: Planning options.
         path: Optional path to save the figure.
     """
+    import matplotlib.pyplot as plt
+
     if options is None:
         options = PlanOptions()
 
@@ -126,6 +131,8 @@ def plot_capacity_tradeoff(
         comparison: Output from compare_scenarios.
         path: Optional path to save the figure.
     """
+    import matplotlib.pyplot as plt
+
     labels = comparison["scenario"] + "\n" + comparison["target"]
     plt.figure(figsize=(10, 5.5))
     plt.bar(labels, comparison["recommended_units"])
@@ -147,16 +154,27 @@ def plot_slack_tradeoff(
         path: Optional path to save the figure.
 
     Raises:
-        ValueError: If comparison is missing the avg_spare_fraction_1s column.
+        ValueError: If comparison has no average spare-fraction column.
     """
-    if "avg_spare_fraction_1s" not in comparison.columns:
-        raise ValueError(
-            "comparison DataFrame must contain 'avg_spare_fraction_1s' column"
-        )
+    import matplotlib.pyplot as plt
+
+    prefix = "avg_spare_fraction_"
+    spare_fraction_columns = [
+        str(column)
+        for column in comparison.columns
+        if str(column).startswith(prefix) and str(column).endswith("s")
+    ]
+    if not spare_fraction_columns:
+        raise ValueError("comparison DataFrame has no average spare-fraction column")
+    spare_fraction_column = min(
+        spare_fraction_columns,
+        key=lambda column: float(column.removeprefix(prefix).removesuffix("s")),
+    )
+    window_label = spare_fraction_column.removeprefix(prefix).removesuffix("s")
     labels = comparison["scenario"] + "\n" + comparison["target"]
     plt.figure(figsize=(10, 5.5))
-    plt.bar(labels, comparison["avg_spare_fraction_1s"])
-    plt.ylabel("Average spare fraction (1s window)")
+    plt.bar(labels, comparison[spare_fraction_column])
+    plt.ylabel(f"Average spare fraction ({window_label}s window)")
     plt.xlabel("Scenario / target")
     plt.title("Slack capacity trade-off")
     plt.xticks(rotation=20, ha="right")

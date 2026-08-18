@@ -51,6 +51,10 @@ def compute_overflow_tokens(
         - overflow_thinking_tokens: Total reasoning-token overflow.
         - overflow_fraction: Fraction of buckets with overflow.
         - trace_duration_hours: Duration of trace in hours.
+
+    Raises:
+        ValueError: If a non-empty trace has fewer than two distinct arrival
+            times.
     """
     buckets = bucket_with_tokens(
         trace.frame,
@@ -79,8 +83,13 @@ def compute_overflow_tokens(
     overflow_thinking = (buckets["thinking_tokens"].to_numpy() * overflow_frac).sum()
     overflow_bucket_fraction = float((overflow_frac > 0).mean())
 
-    arrivals = trace.frame["arrival_s"]
-    trace_duration_hours = max(1e-9, float(arrivals.max() - arrivals.min())) / 3600.0
+    arrivals = trace.frame["arrival_s"].to_numpy(dtype=float)
+    if len(arrivals) < 2:
+        raise ValueError("hybrid planning requires at least two requests")
+    duration_s = float(arrivals.max() - arrivals.min())
+    if duration_s <= 0:
+        raise ValueError("hybrid planning requires a positive trace duration")
+    trace_duration_hours = duration_s / 3600.0
 
     return {
         "overflow_input_tokens": float(overflow_input),
@@ -251,6 +260,8 @@ def plan_hybrid_capacity(
     """
     if options is None:
         options = PlanOptions()
+    if trace.frame.empty:
+        raise ValueError("trace must contain requests before hybrid planning")
     if target.strategy == "cost_optimal" and options.headroom_factor != 0:
         raise ValueError(
             "headroom_factor is not compatible with cost optimization; "

@@ -19,7 +19,13 @@ def _base_trace(seed: int = 42, horizon_s: int = 4 * 3600) -> pd.DataFrame:
 
     Returns:
         DataFrame with synthetic request data.
+
+    Raises:
+        ValueError: If ``horizon_s`` is less than one second.
     """
+    if horizon_s < 1:
+        raise ValueError("horizon_s must be at least 1")
+
     rng = np.random.default_rng(seed)
     secs = np.arange(horizon_s)
 
@@ -29,12 +35,23 @@ def _base_trace(seed: int = 42, horizon_s: int = 4 * 3600) -> pd.DataFrame:
         + 0.3 * np.sin(2 * np.pi * secs / 900)
     )
     lam = np.clip(lam, 0.2, None)
-    for _ in range(14):
-        start = rng.integers(0, horizon_s - 200)
-        dur = int(rng.integers(20, 160))
-        amp = rng.uniform(1.5, 4.5)
-        decay = np.exp(-np.linspace(0, 2, dur))
-        lam[start : start + dur] += amp * decay
+    if horizon_s > 200:
+        for _ in range(14):
+            start = int(rng.integers(0, horizon_s - 200))
+            dur = int(rng.integers(20, 160))
+            amp = rng.uniform(1.5, 4.5)
+            decay = np.exp(-np.linspace(0, 2, dur))
+            lam[start : start + dur] += amp * decay
+    else:
+        burst_count = max(1, round(14 * horizon_s / (4 * 3600)))
+        for _ in range(burst_count):
+            max_duration = min(160, horizon_s)
+            min_duration = min(20, max_duration)
+            dur = int(rng.integers(min_duration, max_duration + 1))
+            start = int(rng.integers(0, horizon_s - dur + 1))
+            amp = rng.uniform(1.5, 4.5)
+            decay = np.exp(-np.linspace(0, 2, dur))
+            lam[start : start + dur] += amp * decay
 
     counts = rng.poisson(lam)
     n = int(counts.sum())
@@ -200,7 +217,13 @@ def make_synthetic_trace(
 
     Returns:
         Synthetic RequestTrace.
+
+    Raises:
+        ValueError: If ``horizon_s`` is less than one second or ``scenario`` is
+            not ``"baseline"`` or ``"optimized"``.
     """
+    if scenario not in {"baseline", "optimized"}:
+        raise ValueError("scenario must be 'baseline' or 'optimized'")
     raw = _base_trace(seed=seed, horizon_s=horizon_s)
     trace = from_dataframe(
         raw,

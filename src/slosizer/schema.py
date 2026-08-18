@@ -332,7 +332,9 @@ class PlanOptions:
         baseline_latency_model: Custom latency model; if None, one is fitted.
 
     Raises:
-        ValueError: If max_units_to_search < 1 or headroom_factor < 0.
+        ValueError: If the output-token source is unsupported,
+            ``max_units_to_search`` is less than one, or ``headroom_factor`` is
+            negative.
     """
 
     output_token_source: OutputTokenSource = OutputTokenSource.OBSERVED
@@ -341,6 +343,14 @@ class PlanOptions:
     baseline_latency_model: BaselineLatencyModel | None = None
 
     def __post_init__(self) -> None:
+        try:
+            output_token_source = OutputTokenSource(self.output_token_source)
+        except ValueError as error:
+            allowed = ", ".join(item.value for item in OutputTokenSource)
+            raise ValueError(
+                f"output_token_source must be one of: {allowed}"
+            ) from error
+        object.__setattr__(self, "output_token_source", output_token_source)
         if self.max_units_to_search < 1:
             raise ValueError(
                 f"max_units_to_search must be >= 1, got {self.max_units_to_search}"

@@ -64,7 +64,7 @@ result = slz.plan_capacity(
 
 ### Option 2: You have request logs
 
-You need a CSV (or DataFrame) with at minimum these 3 columns:
+You need a typed Parquet table (or DataFrame) with at minimum these 3 columns:
 
 | Column | What it means |
 |--------|---------------|
@@ -78,7 +78,7 @@ That's it. The package normalizes timestamps and fills defaults for everything e
 import pandas as pd
 import slosizer as slz
 
-df = pd.read_csv("requests.csv")
+df = pd.read_parquet("requests.parquet")
 
 trace = slz.from_dataframe(
     df,
@@ -108,7 +108,7 @@ uv run python examples/quickstart.py
 
 This writes:
 
-- `examples/output/comparison.csv`
+- `examples/output/comparison.parquet`
 - `examples/output/latency_vs_capacity.png`
 - `examples/output/required_units_distribution.png`
 - `examples/output/scenario_benefit.png`
@@ -132,7 +132,7 @@ uv run vulture
 import pandas as pd
 import slosizer as slz
 
-df = pd.read_csv("requests.csv")
+df = pd.read_parquet("requests.parquet")
 
 trace = slz.from_dataframe(
     df,
@@ -317,25 +317,17 @@ See [`docs/data-requirements.md`](https://gojiplus.github.io/slosizer/data-requi
 
 Example input files:
 
-- [`examples/input/synthetic_request_trace_baseline.csv`](https://github.com/gojiplus/slosizer/blob/main/examples/input/synthetic_request_trace_baseline.csv)
-- [`examples/input/synthetic_request_trace_optimized.csv`](https://github.com/gojiplus/slosizer/blob/main/examples/input/synthetic_request_trace_optimized.csv)
+- `examples/input/synthetic_request_trace_baseline.parquet`
+- `examples/input/synthetic_request_trace_optimized.parquet`
 
 ## Built-in provider support
 
 ### Vertex GSU
-The package ships a reviewed, versioned TOML catalog for current text-capable Vertex Provisioned Throughput models, including:
-
-- `gemini-2.5-flash`
-- `gemini-2.5-flash-lite`
-- `gemini-2.5-pro`
-- `gemini-3.1-flash-lite`
-- `gemini-3.1-pro-preview`
-- `gemini-3.5-flash`
-- `gemini-3.5-flash-lite`
-- `gemini-3.6-flash`
-- `gemini-3.7-flash`
-
-Provider facts live in `src/slosizer/data/vertex.toml`, not in optimizer code. Add a new model by updating a catalog or load your own with `load_capacity_profiles()`.
+The package ships a reviewed, versioned TOML catalog for text-capable Vertex
+Provisioned Throughput models. Call `available_vertex_profiles()` for the
+current set; this avoids duplicating a model list in documentation. Provider
+facts live in `src/slosizer/data/vertex.toml`, not in optimizer code. Add a new
+model by updating the catalog or load your own with `load_capacity_profiles()`.
 
 ### Azure PTU
 Azure PTU support is user-calibrated on purpose. The package gives you the same planning engine, but you provide the model-specific PTU profile from your calculator + benchmark loop.
@@ -364,14 +356,10 @@ That lets you inspect two things immediately:
 
 ### Snapshot of the current synthetic outputs
 
-| scenario | objective | target | recommended units | avg spare fraction (1s) | overload probability (1s) | achieved latency quantile |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| baseline | latency | p95 <= 1.5s | 2 | 0.718 | 0.031 | 1.320s |
-| baseline | latency | p99 <= 1.5s | 3 | 0.807 | 0.004 | 1.413s |
-| baseline | throughput | p99 units, overload <= 1% | 3 | 0.807 | 0.004 | - |
-| optimized | latency | p95 <= 1.5s | 2 | 0.779 | 0.009 | 0.954s |
-| optimized | latency | p99 <= 1.5s | 2 | 0.779 | 0.009 | 1.251s |
-| optimized | throughput | p99 units, overload <= 1% | 2 | 0.779 | 0.009 | - |
+The demo writes the complete current result table to
+`examples/output/comparison.parquet` and prints the same values to the terminal.
+That generated table is the result source; the documentation does not maintain
+a second copy of the numbers.
 
 These numbers are synthetic. They are there to show the mechanics, not to cosplay as your production traffic.
 

@@ -254,6 +254,24 @@ class TestFitBaselineLatencyModel:
 
 
 class TestSimulateCapacity:
+    def test_zero_units_are_rejected(self, simple_profile, simple_trace):
+        with pytest.raises(ValueError, match="units must be at least 1"):
+            simulate_capacity(simple_trace, simple_profile, units=0)
+
+    @pytest.mark.parametrize("timestamps", [[0.0], [0.0, 0.0]])
+    def test_unmeasurable_trace_duration_is_rejected(self, simple_profile, timestamps):
+        frame = pd.DataFrame(
+            {
+                "ts": timestamps,
+                "input_tokens": [100] * len(timestamps),
+                "output_tokens": [50] * len(timestamps),
+            }
+        )
+        trace = from_dataframe(frame, schema=RequestSchema())
+
+        with pytest.raises(ValueError, match=r"requires (at least two|a positive)"):
+            simulate_capacity(trace, simple_profile, units=1)
+
     def test_latency_summary_uses_slo_empirical_quantiles(self, simple_profile):
         frame = pd.DataFrame(
             {

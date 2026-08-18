@@ -43,6 +43,10 @@ class TestSelectedOutputTokens:
         result = selected_output_tokens(frame, "max_output_tokens")
         np.testing.assert_array_equal(result, [500, 500, 500])
 
+    def test_invalid_source_is_rejected(self, frame):
+        with pytest.raises(ValueError, match="output_token_source must be one of"):
+            selected_output_tokens(frame, "max_tokens")
+
 
 class TestAdjustedWork:
     @pytest.fixture

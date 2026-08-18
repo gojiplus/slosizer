@@ -194,6 +194,13 @@ class TestPlanCapacity:
         ):
             plan_capacity(simple_trace, simple_profile, "invalid")
 
+    def test_empty_trace_is_rejected(self, simple_profile):
+        empty = pd.DataFrame(columns=["ts", "input_tokens", "output_tokens"])
+        trace = from_dataframe(empty, schema=RequestSchema())
+
+        with pytest.raises(ValueError, match="at least one request"):
+            plan_capacity(trace, simple_profile, ThroughputTarget())
+
     def test_infeasible_latency_raises(self, simple_profile, simple_trace):
         # Very tight latency requirement
         target = LatencyTarget(slo=LatencySLO(threshold_s=0.0001, percentile=0.99))

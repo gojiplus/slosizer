@@ -1,6 +1,11 @@
 import pandas as pd
+import pytest
 
 import slosizer as slz
+
+
+def test_public_version_matches_project_metadata() -> None:
+    assert slz.__version__ == "0.3.1"
 
 
 def test_ingest_normalizes_columns() -> None:
@@ -97,3 +102,18 @@ def test_optimized_synthetic_trace_preserves_missing_optional_latency() -> None:
     trace = slz.make_synthetic_trace(seed=42, scenario="optimized")
 
     assert trace.frame["observed_latency_s"].isna().all()
+
+
+@pytest.mark.parametrize("horizon_s", [1, 60, 200])
+def test_short_synthetic_horizons_are_supported(horizon_s: int) -> None:
+    trace = slz.make_synthetic_trace(horizon_s=horizon_s, seed=42)
+
+    assert not trace.frame.empty
+    assert trace.frame["arrival_s"].max() < horizon_s
+
+
+def test_invalid_synthetic_inputs_are_rejected() -> None:
+    with pytest.raises(ValueError, match="horizon_s"):
+        slz.make_synthetic_trace(horizon_s=0)
+    with pytest.raises(ValueError, match="scenario"):
+        slz.make_synthetic_trace(scenario="unknown")

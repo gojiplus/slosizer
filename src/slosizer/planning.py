@@ -248,6 +248,9 @@ def plan_capacity(
     if options is None:
         options = PlanOptions()
 
+    if trace.frame.empty:
+        raise ValueError("trace must contain at least one request before planning.")
+
     if profile.throughput_per_unit is None:
         raise ValueError("profile.throughput_per_unit must be set before planning.")
 
