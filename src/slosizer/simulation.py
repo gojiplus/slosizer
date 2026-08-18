@@ -312,21 +312,30 @@ def simulate_capacity(
         SimulationResult with latency and slack statistics.
 
     Raises:
-        ValueError: If profile.throughput_per_unit is not set or if trace
-            contains fewer than 2 requests.
+        ValueError: If ``profile.throughput_per_unit`` is not set, ``units`` is
+            less than one, or the trace has fewer than two distinct arrival
+            times.
     """
     if options is None:
         options = PlanOptions()
 
     if profile.throughput_per_unit is None:
         raise ValueError("profile.throughput_per_unit must be set before simulation.")
+    if units < 1:
+        raise ValueError("units must be at least 1 for latency simulation.")
 
     frame = trace.frame.copy()
+    arrivals = frame["arrival_s"].to_numpy(dtype=float)
+    if len(arrivals) < 2:
+        raise ValueError("latency simulation requires at least two requests.")
+    duration_s = float(arrivals.max() - arrivals.min())
+    if duration_s <= 0:
+        raise ValueError("latency simulation requires a positive trace duration.")
+
     baseline_model = options.baseline_latency_model or fit_baseline_latency_model(trace)
     work = adjusted_work(
         frame, profile, output_token_source=options.output_token_source
     )
-    arrivals = frame["arrival_s"].to_numpy(dtype=float)
     baseline = baseline_model.predict(frame)
     service_rate = float(units) * float(profile.throughput_per_unit)
 
@@ -347,41 +356,21 @@ def simulate_capacity(
     frame["queue_delay_s"] = queue_delay
     frame["total_latency_s"] = total_latency
 
-    if len(total_latency):
-        if len(arrivals) < 2:
-            raise ValueError("Cannot compute utilization with fewer than 2 requests")
-        duration_s = max(1e-9, float(arrivals.max() - arrivals.min()))
-        latency_summary = pd.DataFrame(
-            [
-                {
-                    "mean_latency_s": float(total_latency.mean()),
-                    "p50_latency_s": empirical_quantile(total_latency, 0.50),
-                    "p95_latency_s": empirical_quantile(total_latency, 0.95),
-                    "p99_latency_s": empirical_quantile(total_latency, 0.99),
-                    "mean_queue_delay_s": float(queue_delay.mean()),
-                    "p95_queue_delay_s": empirical_quantile(queue_delay, 0.95),
-                    "p99_queue_delay_s": empirical_quantile(queue_delay, 0.99),
-                    "queue_probability": float((queue_delay > 0).mean()),
-                    "utilization": float(work.sum() / (duration_s * service_rate)),
-                }
-            ]
-        )
-    else:
-        latency_summary = pd.DataFrame(
-            [
-                {
-                    "mean_latency_s": 0.0,
-                    "p50_latency_s": 0.0,
-                    "p95_latency_s": 0.0,
-                    "p99_latency_s": 0.0,
-                    "mean_queue_delay_s": 0.0,
-                    "p95_queue_delay_s": 0.0,
-                    "p99_queue_delay_s": 0.0,
-                    "queue_probability": 0.0,
-                    "utilization": 0.0,
-                }
-            ]
-        )
+    latency_summary = pd.DataFrame(
+        [
+            {
+                "mean_latency_s": float(total_latency.mean()),
+                "p50_latency_s": empirical_quantile(total_latency, 0.50),
+                "p95_latency_s": empirical_quantile(total_latency, 0.95),
+                "p99_latency_s": empirical_quantile(total_latency, 0.99),
+                "mean_queue_delay_s": float(queue_delay.mean()),
+                "p95_queue_delay_s": empirical_quantile(queue_delay, 0.95),
+                "p99_queue_delay_s": empirical_quantile(queue_delay, 0.99),
+                "queue_probability": float((queue_delay > 0).mean()),
+                "utilization": float(work.sum() / (duration_s * service_rate)),
+            }
+        ]
+    )
 
     slack_table = bucket_required_units(
         frame,

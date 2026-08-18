@@ -24,17 +24,17 @@ from slosizer import (
 from slosizer.providers.vertex import available_vertex_profiles, vertex_profile
 from slosizer.simulation import bucket_required_units, simulate_capacity
 
-EXAMPLE_CSV = (
+EXAMPLE_PARQUET = (
     Path(__file__).parent
     / "examples"
     / "input"
-    / "synthetic_request_trace_baseline.csv"
+    / "synthetic_request_trace_baseline.parquet"
 )
 
 
 def load_example_data() -> pd.DataFrame:
-    """Load the bundled example CSV."""
-    return pd.read_csv(EXAMPLE_CSV)
+    """Load the bundled typed example data."""
+    return pd.read_parquet(EXAMPLE_PARQUET)
 
 
 def infer_schema(df: pd.DataFrame) -> RequestSchema:
@@ -77,21 +77,27 @@ def main() -> None:
         st.header("Data Source")
         data_source = st.radio(
             "Choose data source",
-            ["Use example data", "Upload CSV"],
+            ["Use example data", "Upload data"],
             label_visibility="collapsed",
         )
 
         df = None
         if data_source == "Use example data":
-            if EXAMPLE_CSV.exists():
+            if EXAMPLE_PARQUET.exists():
                 df = load_example_data()
                 st.success(f"Loaded {len(df)} requests from example data")
             else:
-                st.error("Example CSV not found")
+                st.error("Example Parquet file not found")
         else:
-            uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+            uploaded_file = st.file_uploader(
+                "Upload Parquet or CSV", type=["parquet", "csv"]
+            )
             if uploaded_file is not None:
-                df = pd.read_csv(uploaded_file)
+                df = (
+                    pd.read_parquet(uploaded_file)
+                    if uploaded_file.name.endswith(".parquet")
+                    else pd.read_csv(uploaded_file)
+                )
                 st.success(f"Loaded {len(df)} requests")
 
         st.divider()

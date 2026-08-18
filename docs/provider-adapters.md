@@ -21,20 +21,11 @@ That is enough to turn requests into adjusted work and then into required reserv
 
 The package loads reviewed Vertex AI profiles from `src/slosizer/data/vertex.toml`. The catalog records [Google Cloud's Provisioned Throughput documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/provisioned-throughput/supported-models) as its source and includes the date the values were checked.
 
-### Available Models
+### Available models
 
-| Model | Throughput per GSU | Output Weight | Long Context |
-|-------|-------------------|---------------|--------------|
-| gemini-2.5-flash | 2,690 | 9x | No |
-| gemini-2.5-flash-lite | 8,070 | 4x | No |
-| gemini-2.5-pro | 650 | 8x | Yes (>200k) |
-| gemini-3-flash-preview | 2,015 | 6x | No |
-| gemini-3.1-flash-lite | 4,030 | 6x | No |
-| gemini-3.1-pro-preview | 500 | 6x | Yes (>200k) |
-| gemini-3.5-flash | 675 | 6x | No |
-| gemini-3.5-flash-lite | 3,360 | 9x | No |
-| gemini-3.6-flash | 675 | 5x | No |
-| gemini-3.7-flash | 675 | 5x | No |
+Use `available_vertex_profiles()` to read the current model set from the
+catalog. Keeping the model identifiers and capacity values in one runtime
+source prevents documentation from drifting from planner behavior.
 
 ### Token Burndown Rates
 

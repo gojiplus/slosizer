@@ -373,6 +373,39 @@ class TestComputeOverflowTokens:
 
 
 class TestPlanHybridCapacity:
+    def test_empty_trace_is_rejected(self, simple_profile, standard_pricing):
+        frame = pd.DataFrame(columns=["ts", "input_tokens", "output_tokens"])
+        trace = from_dataframe(frame, schema=RequestSchema())
+
+        with pytest.raises(ValueError, match="must contain requests"):
+            plan_hybrid_capacity(
+                trace,
+                simple_profile,
+                standard_pricing,
+                HybridTarget(strategy="cost_optimal"),
+            )
+
+    @pytest.mark.parametrize("timestamps", [[0.0], [0.0, 0.0]])
+    def test_unmeasurable_trace_duration_is_rejected(
+        self, simple_profile, standard_pricing, timestamps
+    ):
+        frame = pd.DataFrame(
+            {
+                "ts": timestamps,
+                "input_tokens": [1000] * len(timestamps),
+                "output_tokens": [500] * len(timestamps),
+            }
+        )
+        trace = from_dataframe(frame, schema=RequestSchema())
+
+        with pytest.raises(ValueError, match=r"requires (at least two|a positive)"):
+            plan_hybrid_capacity(
+                trace,
+                simple_profile,
+                standard_pricing,
+                HybridTarget(strategy="cost_optimal"),
+            )
+
     def test_candidates_share_provider_purchase_grid(self):
         profile = CapacityProfile(
             provider="test",

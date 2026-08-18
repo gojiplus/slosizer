@@ -9,7 +9,7 @@ uv run python examples/quickstart.py
 
 It generates these files:
 
-- `examples/output/comparison.csv`
+- `examples/output/comparison.parquet`
 - `examples/output/latency_vs_capacity.png`
 - `examples/output/required_units_distribution.png`
 - `examples/output/scenario_benefit.png`
@@ -32,14 +32,9 @@ The optimized scenario applies four changes:
 
 ## Current synthetic results
 
-| scenario | objective | target | recommended units | avg spare fraction (1s) | overload probability (1s) | achieved latency quantile |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| baseline | latency | p95 <= 1.5s | 2 | 0.718 | 0.031 | 1.320s |
-| baseline | latency | p99 <= 1.5s | 3 | 0.807 | 0.004 | 1.413s |
-| baseline | throughput | p99 units, overload <= 1% | 3 | 0.807 | 0.004 | - |
-| optimized | latency | p95 <= 1.5s | 2 | 0.779 | 0.009 | 0.954s |
-| optimized | latency | p99 <= 1.5s | 2 | 0.779 | 0.009 | 1.251s |
-| optimized | throughput | p99 units, overload <= 1% | 2 | 0.779 | 0.009 | - |
+`examples/output/comparison.parquet` is generated directly by the demo and is
+the authoritative result table. The command also prints that table for quick
+inspection, so no second set of numbers is maintained in the documentation.
 
 ## Rendered plots
 

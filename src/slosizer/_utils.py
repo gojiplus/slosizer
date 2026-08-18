@@ -6,12 +6,13 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
 
-from slosizer.schema import CapacityProfile
+from slosizer.schema import OutputTokenSource
 
 if TYPE_CHECKING:
-    from slosizer.schema import OutputTokenSource
+    import pandas as pd
+
+    from slosizer.schema import CapacityProfile
 
 
 def round_up_to_increment(units: float, minimum: int, increment: int) -> int:
@@ -58,8 +59,17 @@ def selected_output_tokens(
 
     Returns:
         Array of output token counts.
+
+    Raises:
+        ValueError: If ``source`` is not a supported output-token source.
     """
-    if str(source) == "max_output_tokens":
+    try:
+        token_source = OutputTokenSource(source)
+    except ValueError as error:
+        allowed = ", ".join(item.value for item in OutputTokenSource)
+        raise ValueError(f"output_token_source must be one of: {allowed}") from error
+
+    if token_source is OutputTokenSource.MAX_OUTPUT_TOKENS:
         return frame["max_output_tokens"].to_numpy(dtype=float)
     return frame["output_tokens"].to_numpy(dtype=float)
 

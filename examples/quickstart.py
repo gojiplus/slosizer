@@ -26,11 +26,13 @@ comparison = slz.compare_scenarios(
     targets,
     options=options,
 )
-comparison.to_csv(OUTPUT_DIR / "comparison.csv", index=False)
+comparison.to_parquet(OUTPUT_DIR / "comparison.parquet", index=False)
 
-baseline.frame.to_csv(OUTPUT_DIR / "synthetic_request_trace_baseline.csv", index=False)
-optimized.frame.to_csv(
-    OUTPUT_DIR / "synthetic_request_trace_optimized.csv", index=False
+baseline.frame.to_parquet(
+    OUTPUT_DIR / "synthetic_request_trace_baseline.parquet", index=False
+)
+optimized.frame.to_parquet(
+    OUTPUT_DIR / "synthetic_request_trace_optimized.parquet", index=False
 )
 
 latency_target = slz.LatencyTarget(slz.LatencySLO(threshold_s=1.5, percentile=0.99))

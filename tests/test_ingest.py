@@ -251,3 +251,47 @@ class TestFromDataframe:
         # Default should be max observed output tokens
         assert trace.frame["max_output_tokens"].iloc[0] == 150
         assert trace.frame["max_output_tokens"].iloc[1] == 150
+
+    def test_optional_token_nulls_use_documented_defaults(self):
+        df = pd.DataFrame(
+            {
+                "ts": [0.0, 1.0],
+                "input_tokens": [100, 200],
+                "cached_input_tokens": [10, None],
+                "output_tokens": [50, 150],
+                "thinking_tokens": [None, 25],
+                "max_output_tokens": [200, None],
+            }
+        )
+
+        trace = from_dataframe(df, schema=RequestSchema())
+
+        np.testing.assert_array_equal(trace.frame["cached_input_tokens"], [10, 0])
+        np.testing.assert_array_equal(trace.frame["thinking_tokens"], [0, 25])
+        np.testing.assert_array_equal(trace.frame["max_output_tokens"], [200, 150])
+
+    def test_optional_token_text_is_not_treated_as_missing(self):
+        df = pd.DataFrame(
+            {
+                "ts": [0.0, 1.0],
+                "input_tokens": [100, 200],
+                "cached_input_tokens": [10, "unknown"],
+                "output_tokens": [50, 150],
+            }
+        )
+
+        with pytest.raises(ValueError, match="contains non-numeric values"):
+            from_dataframe(df, schema=RequestSchema())
+
+    def test_max_output_cannot_be_below_observed_output(self):
+        df = pd.DataFrame(
+            {
+                "ts": [0.0],
+                "input_tokens": [100],
+                "output_tokens": [150],
+                "max_output_tokens": [100],
+            }
+        )
+
+        with pytest.raises(ValueError, match="max_output_tokens cannot be less"):
+            from_dataframe(df, schema=RequestSchema())

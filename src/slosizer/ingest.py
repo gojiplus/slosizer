@@ -24,7 +24,7 @@ def _normalize_arrival_seconds(series: pd.Series) -> pd.Series:
     if is_datetime64_any_dtype(series):
         return (series - series.min()).dt.total_seconds().astype(float)
     if is_numeric_dtype(series):
-        values = cast(pd.Series, pd.to_numeric(series, errors="raise")).astype(float)
+        values = cast("pd.Series", pd.to_numeric(series, errors="raise")).astype(float)
         return values - float(values.min())
 
     parsed = pd.to_datetime(series, errors="raise")
@@ -36,6 +36,7 @@ def _coerce_nonnegative_numeric(
     source_col: str | None,
     *,
     default: float = 0.0,
+    fill_missing: bool = False,
 ) -> pd.Series:
     """Extract and validate a non-negative numeric column.
 
@@ -43,6 +44,7 @@ def _coerce_nonnegative_numeric(
         data: Source DataFrame.
         source_col: Column name to extract.
         default: Default value if column is missing.
+        fill_missing: Replace null values with ``default`` when true.
 
     Returns:
         Series of non-negative float values.
@@ -52,11 +54,15 @@ def _coerce_nonnegative_numeric(
     """
     if source_col is None or source_col not in data.columns:
         return pd.Series(default, index=data.index, dtype=float)
-    values = cast(pd.Series, pd.to_numeric(data[source_col], errors="coerce"))
+    source = cast("pd.Series", data[source_col])
+    values = cast("pd.Series", pd.to_numeric(source, errors="coerce"))
+    invalid = values.isna() & source.notna()
+    if invalid.any():
+        raise ValueError(f"Column {source_col!r} contains non-numeric values.")
     if values.isna().any():
-        raise ValueError(
-            f"Column {source_col!r} contains missing or non-numeric values."
-        )
+        if not fill_missing:
+            raise ValueError(f"Column {source_col!r} contains missing values.")
+        values = values.fillna(default)
     if (values < 0).any():
         raise ValueError(f"Column {source_col!r} contains negative values.")
     return values.astype(float)
@@ -68,7 +74,7 @@ def _coerce_optional_nonnegative_numeric(
     """Extract an optional non-negative numeric column, preserving missingness."""
     if source_col is None or source_col not in data.columns:
         return pd.Series(float("nan"), index=data.index, dtype=float)
-    values = cast(pd.Series, pd.to_numeric(data[source_col], errors="coerce"))
+    values = cast("pd.Series", pd.to_numeric(data[source_col], errors="coerce"))
     invalid = values.isna() & data[source_col].notna()
     if invalid.any():
         raise ValueError(f"Column {source_col!r} contains non-numeric values.")
@@ -83,7 +89,7 @@ def _coerce_optional_text(
     """Extract an optional string column without turning missing values into text."""
     if source_col is None or source_col not in data.columns:
         return pd.Series(default, index=data.index, dtype="string")
-    return cast(pd.Series, data[source_col]).astype("string")
+    return cast("pd.Series", data[source_col]).astype("string")
 
 
 def from_dataframe(
@@ -129,7 +135,7 @@ def from_dataframe(
     frame = raw.copy()
 
     frame["arrival_s"] = _normalize_arrival_seconds(
-        cast(pd.Series, raw[schema.time_col])
+        cast("pd.Series", raw[schema.time_col])
     )
     frame["class_name"] = (
         raw[schema.class_col].astype(str)
@@ -151,6 +157,7 @@ def from_dataframe(
         _coerce_nonnegative_numeric(
             raw,
             schema.cached_input_tokens_col,
+            fill_missing=True,
         )
         .round()
         .astype(int)
@@ -162,6 +169,7 @@ def from_dataframe(
         _coerce_nonnegative_numeric(
             raw,
             schema.thinking_tokens_col,
+            fill_missing=True,
         )
         .round()
         .astype(int)
@@ -172,6 +180,7 @@ def from_dataframe(
             raw,
             schema.max_output_tokens_col,
             default=default_max_output,
+            fill_missing=True,
         )
         .round()
         .astype(int)
@@ -199,13 +208,16 @@ def from_dataframe(
         "observed_latency_s",
         "business_value",
     ]
-    frame = cast(pd.DataFrame, frame.loc[:, canonical_columns])
+    frame = cast("pd.DataFrame", frame.loc[:, canonical_columns])
     frame = frame.sort_values("arrival_s", kind="mergesort").reset_index(drop=True)
 
     if validate:
         invalid_cache = frame["cached_input_tokens"] > frame["input_tokens"]
         if invalid_cache.any():
             raise ValueError("cached_input_tokens cannot exceed input_tokens.")
+        invalid_max_output = frame["max_output_tokens"] < frame["output_tokens"]
+        if invalid_max_output.any():
+            raise ValueError("max_output_tokens cannot be less than output_tokens.")
         if bool(frame["arrival_s"].isna().any()):
             raise ValueError("arrival_s contains missing values after normalization.")
 

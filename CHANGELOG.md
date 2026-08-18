@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-17
+
+### Changed
+
+- Migrated from Hatchling and tag-derived build versions to py-canon's native
+  `uv_build` release contract: explicit project metadata matched to the release
+  tag.
+- Replaced persistent synthetic CSV files and generated CSV results with
+  explicit-schema Parquet.
+- Made the Vertex model catalog the single source for available-model
+  documentation.
+
+### Fixed
+
+- Reject hybrid cost and latency calculations when a trace has no measurable
+  observation span instead of producing unbounded hourly rates or utilization.
+- Support short synthetic horizons while preserving the seeded four-hour
+  benchmark exactly.
+- Fill null optional token telemetry with its documented defaults while still
+  rejecting invalid text, negative values, and output limits below observed
+  output.
+- Reject empty planning traces and invalid output-token sources with clear
+  errors.
+- Plot slack results using the shortest available analysis window instead of
+  requiring a one-second window.
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

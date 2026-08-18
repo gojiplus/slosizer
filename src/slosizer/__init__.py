@@ -5,6 +5,8 @@ cloud LLM providers (Vertex AI GSU, Azure PTU) based on your workload
 characteristics and SLO targets.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from slosizer.catalog import load_capacity_profiles
 from slosizer.economics import compare_profit_scenarios, plan_profit_capacity
 from slosizer.hybrid import plan_hybrid_capacity
@@ -43,6 +45,11 @@ from slosizer.schema import (
 from slosizer.simulation import fit_baseline_latency_model, simulate_capacity
 from slosizer.synthetic import make_synthetic_trace, optimize_trace
 
+try:
+    __version__ = version("slosizer")
+except PackageNotFoundError:  # pragma: no cover - source tree without installation
+    __version__ = "0.0.0"
+
 __all__ = [
     "BaselineLatencyModel",
     "CapacityProfile",
@@ -64,6 +71,7 @@ __all__ = [
     "RequestTrace",
     "SimulationResult",
     "ThroughputTarget",
+    "__version__",
     "available_vertex_profiles",
     "azure_profile",
     "compare_profit_scenarios",

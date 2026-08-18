@@ -23,23 +23,12 @@ The package gets more useful when you also provide these:
 | service_tier | yes | separates provisioned, standard, priority, batch, and fallback traffic |
 | business_value | advanced profit planning only | expected gross contribution before inference and SLO costs; does not change forecast demand |
 
-## Minimal schema
+## Persistent data format
 
-```text
-timestamp,input_tokens,output_tokens
-0.0,800,120
-0.2,1200,180
-0.7,600,95
-```
-
-## Recommended schema
-
-```text
-timestamp,request_id,class_name,request_model,response_model,service_tier,input_tokens,cached_input_tokens,output_tokens,thinking_tokens,max_output_tokens,latency_s,business_value
-0.0,r1,chat,gemini-2.5-flash,gemini-2.5-flash,provisioned,800,120,120,0,512,0.74,0.04
-0.2,r2,rag,gemini-2.5-flash,gemini-2.5-flash,provisioned,1200,350,180,0,768,1.10,0.08
-0.7,r3,reasoning,gemini-2.5-flash,gemini-2.5-flash,standard,600,0,95,210,1024,1.48,0.15
-```
+Store request traces as Parquet with declared Arrow types. The examples use
+`float64` for arrival time and observed latency, `int64` for token counts, and
+`string` for request classes. Parquet preserves those logical types and nulls;
+CSV remains acceptable only as a temporary user import boundary.
 
 The requested and response model fields are separate on purpose. A gateway, alias, fallback, or provider migration can make them differ. Cached and thinking tokens stay separate because capacity burndown and paygo prices can differ from ordinary input and output tokens.
 
@@ -49,7 +38,7 @@ Keep provider billing exports in a cost table rather than copying invoice cost o
 
 ## Example files in this repo
 
-- `examples/input/synthetic_request_trace_baseline.csv`
-- `examples/input/synthetic_request_trace_optimized.csv`
+- `examples/input/synthetic_request_trace_baseline.parquet`
+- `examples/input/synthetic_request_trace_optimized.parquet`
 
 Those are fake, but structurally realistic.
