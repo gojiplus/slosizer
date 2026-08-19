@@ -21,3 +21,4 @@ jobs:
       wheel-import: slosizer
       coverage-floor: 85
       python-versions: '["3.13", "3.14"]'
+      run-preen: true
