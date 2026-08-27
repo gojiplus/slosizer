@@ -174,7 +174,8 @@ class TestFitBaselineLatencyModel:
             df,
             schema=RequestSchema(),
         )
-        model = fit_baseline_latency_model(trace)
+        with pytest.warns(UserWarning, match="Insufficient latency data"):
+            model = fit_baseline_latency_model(trace)
 
         # Should return default model due to < 20 samples
         assert model == BaselineLatencyModel()
@@ -193,7 +194,8 @@ class TestFitBaselineLatencyModel:
             df,
             schema=RequestSchema(latency_col=None),
         )
-        model = fit_baseline_latency_model(trace)
+        with pytest.warns(UserWarning, match="Insufficient latency data"):
+            model = fit_baseline_latency_model(trace)
 
         assert model == BaselineLatencyModel()
 
