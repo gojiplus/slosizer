@@ -65,7 +65,19 @@ app = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+minversion = "6"
+log_level = "INFO"
+xfail_strict = true
+filterwarnings = [
+    "error",
+    # slosizer's own advisory. Most fixtures carry no latency column
+    # because they exercise token accounting, and the fallback to the
+    # default latency model is the documented behaviour there. The two
+    # tests that are about the fallback assert it with pytest.warns,
+    # which sees the warning regardless of this filter.
+    "ignore:Insufficient latency data:UserWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]
