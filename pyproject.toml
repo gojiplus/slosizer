@@ -73,7 +73,7 @@ filterwarnings = [
     "error",
     # slosizer's own advisory. Most fixtures carry no latency column
     # because they exercise token accounting, and the fallback to the
-    # default latency model is the documented behaviour there. The two
+    # default latency model is the documented behavior there. The two
     # tests that are about the fallback assert it with pytest.warns,
     # which sees the warning regardless of this filter.
     "ignore:Insufficient latency data:UserWarning",
@@ -138,3 +138,6 @@ typeCheckingMode = "standard"
 
 [tool.uv.build-backend]
 module-name = "slosizer"
+
+[tool.codespell]
+builtin = "clear,rare,en-GB_to_en-US"
