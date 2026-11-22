@@ -10,7 +10,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 authors = [
-  {name = "Gaurav Sood", email = "contact@gsood.com"}
+  {name = "Gaurav Sood"}
 ]
 keywords = ["llm", "capacity-planning", "cost-optimization", "slo", "vertex-ai", "azure-openai", "throughput", "latency"]
 classifiers = [
