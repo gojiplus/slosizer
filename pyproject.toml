@@ -23,9 +23,9 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "numpy",
-  "pandas",
-  "matplotlib",
+  "numpy>=2.1.0",
+  "pandas>=2.2.3",
+  "matplotlib>=3.10.7",
   "pyarrow>=24,<27",
 ]
 version = "0.3.1"
