@@ -1523,7 +1523,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", specifier = ">=3.9.2" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "numpy", specifier = ">=2.1.0" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pyarrow", specifier = ">=24,<27" },
